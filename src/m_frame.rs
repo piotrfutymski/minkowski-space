@@ -40,6 +40,10 @@ impl MFrame{
         id
     }
 
+    pub fn unregister_object(&mut self, id: &usize) {
+        self.registered_objects.remove(id);
+    }
+
     pub fn get_object_with_properties(&self, id: &usize) -> Option<&(MObject, ObjectTracker)>{
         self.registered_objects.get(id)
     }
