@@ -7,6 +7,7 @@ use crate::m_object::MObject;
 use crate::m_vector::MVector;
 use crate::object_tracker::{ObjectTracker, ReceiverData};
 
+#[derive(Default)]
 pub struct MFrame{
 
     frame_object: MObject,
@@ -15,7 +16,6 @@ pub struct MFrame{
 
     counter: usize
 }
-
 
 impl MFrame{
 
