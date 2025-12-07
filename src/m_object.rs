@@ -152,6 +152,7 @@ impl MObject{
         if self.constant_velocity {
             return;
         }
+        self.update_offsets();
         self.velocity = velocity;
     }
 
