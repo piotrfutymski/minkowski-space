@@ -1,7 +1,7 @@
 use vector2d::Vector2D;
 use crate::m_vector::MVector;
 use crate::photon::{Photon, PhotonEmittingPosition};
-use crate::UPDATE_RATIO;
+use crate::{MAX_SAFE_SPEED, UPDATE_RATIO};
 
 pub struct MObject{
 
@@ -230,6 +230,9 @@ impl MObject{
         let new_vy = one_over_gamma * dvy / (1.0 + speed * dvx);
         let new_v = current_v_direction * new_vx + dvy_vec.normalise() * new_vy;
         self.velocity = new_v;
+        if self.velocity.length_squared() >= 1.0 {
+            self.velocity = self.velocity.normalise() * MAX_SAFE_SPEED
+        }
         self.update_offsets();
     }
 
