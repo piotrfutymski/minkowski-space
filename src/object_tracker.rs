@@ -194,8 +194,6 @@ impl ObjectTracker{
         if let Some(properties) = self.calculate_properties(){
             (self.relative_visible_position, self.basis_x, self.basis_y, self.relative_frequency, self.visible_m_vector) = properties;
             self.object_was_seen = true
-        }else{
-            self.object_was_seen = false;
         }
     }
 
