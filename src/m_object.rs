@@ -57,7 +57,7 @@ impl MObject{
     }
 
     pub(crate) fn process_tau(&mut self, tau: f64){
-        let gamma = self.gamma();
+        let mut gamma = self.gamma();
         let mut rest_tau = tau;
         let mut update_ratio_in_base_frame = UPDATE_RATIO * gamma;
         while rest_tau > UPDATE_RATIO {
@@ -65,6 +65,7 @@ impl MObject{
             self.m_pos = self.m_pos + MVector::new(update_ratio_in_base_frame, self.velocity * update_ratio_in_base_frame);
             if self.acceleration.length() > 0.0 {
                 self.accelerate(UPDATE_RATIO);
+                gamma = self.gamma();
             }
             update_ratio_in_base_frame = UPDATE_RATIO * gamma;
         }
@@ -81,7 +82,7 @@ impl MObject{
         if delta < 0.0{
             return vec![]
         }
-        let gamma = self.gamma();
+        let mut gamma = self.gamma();
         if self.constant_velocity {
             self.tau += delta / gamma;
             self.m_pos = self.m_pos + MVector::new(delta, self.velocity * delta);
@@ -94,6 +95,7 @@ impl MObject{
                 self.m_pos = self.m_pos + MVector::new(update_ratio_in_base_frame, self.velocity * update_ratio_in_base_frame);
                 if self.acceleration.length() > 0.0 {
                     self.accelerate(UPDATE_RATIO);
+                    gamma = self.gamma();
                 }
                 self.tau += UPDATE_RATIO;
                 update_ratio_in_base_frame = UPDATE_RATIO * gamma;
