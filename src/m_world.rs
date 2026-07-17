@@ -1,14 +1,16 @@
-use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
+use rayon::iter::{IntoParallelRefMutIterator, ParallelBridge, ParallelIterator};
 use std::collections::HashMap;
 use std::sync::Arc;
 use rayon::iter::IntoParallelRefIterator;
 use vector2d::Vector2D;
+use crate::config::{MotionMode, ObjectConfig, WorldConfig};
 use crate::m_object::MObject;
 use crate::m_vector::MVector;
 use crate::object_tracker::{ObjectTracker, ReceiverData};
 
-#[derive(Default)]
-pub struct MFrame{
+pub struct MWorld {
+    
+    config: WorldConfig,
 
     frame_object: MObject,
 
@@ -17,22 +19,24 @@ pub struct MFrame{
     counter: usize
 }
 
-impl MFrame{
+impl MWorld {
 
     pub fn new() -> Self{
+        let config: WorldConfig = Default::default();
         Self{
-            frame_object: Default::default(),
+            frame_object: MObject::new(ObjectConfig::default_with_group(config.frame_collision_group), config.proper_time_step),
+            config,
             registered_objects: Default::default(),
             counter: 0,
         }
     }
 
-    pub fn register_object(&mut self, initial_pos: MVector<f64>, initial_vel: Vector2D<f64>, constant_velocity: bool, radius: f64) -> usize{
-        let mut m_object = MObject::new(initial_pos, initial_vel, constant_velocity, radius);
+    pub fn register_object(&mut self, object_config: ObjectConfig) -> usize{
+        let mut m_object = MObject::new(object_config, self.config.proper_time_step);
         let mut object_tracker = ObjectTracker::new();
         let id = self.counter;
         self.counter += 1;
-        if constant_velocity {
+        if object_config.motion_mode == MotionMode::AlwaysConstantVelocity {
             let photons = m_object.emmit_all_photons();
             object_tracker.track_photons(photons);
         }

@@ -6,12 +6,13 @@
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::expect_used)]
 
-pub static UPDATE_RATIO: f64 = 1.0/120.0;
-
 pub static MAX_SAFE_SPEED: f64 = 1.0 - 10e-6;
 
 pub mod m_vector;
 pub mod m_object;
 pub mod object_tracker;
 mod photon;
-pub mod m_frame;
+pub mod m_world;
+pub mod config;
+pub mod collision;
+mod m_event;

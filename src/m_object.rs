@@ -1,11 +1,11 @@
 use vector2d::Vector2D;
 use crate::m_vector::MVector;
 use crate::photon::{Photon, PhotonEmittingPosition};
-use crate::{MAX_SAFE_SPEED, UPDATE_RATIO};
-
+use crate::{MAX_SAFE_SPEED};
+use crate::config::{MotionMode, ObjectConfig};
 pub struct MObject{
 
-    constant_velocity: bool,
+    motion_mode: MotionMode,
     radius: f64,
 
     tau: f64,
@@ -21,23 +21,19 @@ pub struct MObject{
     back_offset: MVector<f64>,
     bottom_offset: MVector<f64>,
     top_offset: MVector<f64>,
+    
+    proper_time_step: f64,
 
-}
-
-impl Default for MObject{
-    fn default() -> Self {
-        Self::new(MVector::default(), Vector2D::default(), false, 0.0)
-    }
 }
 
 impl MObject{
-    pub(crate) fn new(initial_pos: MVector<f64>, initial_vel: Vector2D<f64>, constant_velocity: bool, radius: f64) -> Self{
+    pub(crate) fn new(object_config: ObjectConfig, update_ratio: f64) -> Self{
         let mut res = Self{
-            constant_velocity,
-            radius,
+            motion_mode: object_config.motion_mode,
+            radius: object_config.radius,
             tau: 0.0,
-            m_pos: initial_pos,
-            velocity: initial_vel,
+            m_pos: object_config.position,
+            velocity: object_config.velocity,
             acceleration: Default::default(),
             t_from_last_update_in_base_frame: 0.0,
 
@@ -48,8 +44,9 @@ impl MObject{
             back_offset: Default::default(),
             bottom_offset: Default::default(),
             top_offset: Default::default(),
+            proper_time_step: update_ratio,
         };
-        if constant_velocity {
+        if object_config.motion_mode == MotionMode::AlwaysConstantVelocity {
             res.ready_constant_v()
         }
         res.update_offsets();
@@ -59,15 +56,15 @@ impl MObject{
     pub(crate) fn process_tau(&mut self, tau: f64){
         let mut gamma = self.gamma();
         let mut rest_tau = tau;
-        let mut update_ratio_in_base_frame = UPDATE_RATIO * gamma;
-        while rest_tau > UPDATE_RATIO {
-            rest_tau -= UPDATE_RATIO;
+        let mut update_ratio_in_base_frame = self.proper_time_step * gamma;
+        while rest_tau > self.proper_time_step {
+            rest_tau -= self.proper_time_step;
             self.m_pos = self.m_pos + MVector::new(update_ratio_in_base_frame, self.velocity * update_ratio_in_base_frame);
             if self.acceleration.length() > 0.0 {
-                self.accelerate(UPDATE_RATIO);
+                self.accelerate(self.proper_time_step);
                 gamma = self.gamma();
             }
-            update_ratio_in_base_frame = UPDATE_RATIO * gamma;
+            update_ratio_in_base_frame = self.proper_time_step * gamma;
         }
         update_ratio_in_base_frame = rest_tau * gamma;
         self.m_pos = self.m_pos + MVector::new(update_ratio_in_base_frame, self.velocity * update_ratio_in_base_frame);
@@ -83,22 +80,22 @@ impl MObject{
             return vec![]
         }
         let mut gamma = self.gamma();
-        if self.constant_velocity {
+        if self.motion_mode == MotionMode::AlwaysConstantVelocity {
             self.tau += delta / gamma;
             self.m_pos = self.m_pos + MVector::new(delta, self.velocity * delta);
             vec![]
         } else {
             let mut res = vec![];
-            let mut update_ratio_in_base_frame = UPDATE_RATIO * gamma;
+            let mut update_ratio_in_base_frame = self.proper_time_step * gamma;
             self.t_from_last_update_in_base_frame += delta;
             while self.check_for_next_update(update_ratio_in_base_frame) {
                 self.m_pos = self.m_pos + MVector::new(update_ratio_in_base_frame, self.velocity * update_ratio_in_base_frame);
                 if self.acceleration.length() > 0.0 {
-                    self.accelerate(UPDATE_RATIO);
+                    self.accelerate(self.proper_time_step);
                     gamma = self.gamma();
                 }
-                self.tau += UPDATE_RATIO;
-                update_ratio_in_base_frame = UPDATE_RATIO * gamma;
+                self.tau += self.proper_time_step;
+                update_ratio_in_base_frame = self.proper_time_step * gamma;
                 res.append(&mut self.emmit_all_photons())
             }
             res
@@ -106,14 +103,14 @@ impl MObject{
     }
 
     pub fn gamma(&self) -> f64{
-        if self.constant_velocity {
+        if self.motion_mode == MotionMode::AlwaysConstantVelocity {
             return self.constant_gamma
         }
         1.0/(1.0 - self.velocity.length_squared()).sqrt()
     }
 
     pub fn one_over_gamma(&self) -> f64{
-        if self.constant_velocity {
+        if self.motion_mode == MotionMode::AlwaysConstantVelocity {
             return 1.0/self.constant_gamma
         }
         (1.0 - self.velocity.length_squared()).sqrt()
@@ -121,13 +118,13 @@ impl MObject{
 
     pub fn calculate_between_photons_vector(&self) -> MVector<f64>{
         let gamma = self.gamma();
-        let dt = UPDATE_RATIO * gamma;
+        let dt = self.proper_time_step * gamma;
         let dx = self.velocity * dt;
         MVector::new(dt, dx)
     }
 
     pub fn constant_velocity(&self) -> bool {
-        self.constant_velocity
+        self.motion_mode == MotionMode::AlwaysConstantVelocity
     }
 
     pub fn get_radius(&self) -> f64 {
@@ -151,7 +148,7 @@ impl MObject{
     }
 
     pub fn set_velocity(&mut self, velocity: Vector2D<f64>) {
-        if self.constant_velocity {
+        if self.motion_mode == MotionMode::AlwaysConstantVelocity {
             return;
         }
         self.update_offsets();
@@ -159,7 +156,7 @@ impl MObject{
     }
 
     pub fn set_acceleration(&mut self, acceleration: Vector2D<f64>) {
-        if self.constant_velocity {
+        if self.motion_mode == MotionMode::AlwaysConstantVelocity {
             return;
         }
         self.acceleration = acceleration;
@@ -175,6 +172,10 @@ impl MObject{
             res.push(Photon::new(self.m_pos + self.top_offset, PhotonEmittingPosition::TOP));
         }
         res
+    }
+
+    pub(crate) fn get_proper_time_step(&self) -> f64 {
+        self.proper_time_step
     }
 }
 
