@@ -27,3 +27,13 @@ pub struct Collision {
     /// Contact point in the world's base frame.
     pub contact_point: Vector2D<f64>,
 }
+
+pub(crate) struct  CollisionCalculator{
+}
+
+impl CollisionCalculator {
+    pub(crate) fn calculate_collisions(&self) -> Vec<Collision> {
+        //TODO IMPLEMENT
+        vec![]
+    }
+}

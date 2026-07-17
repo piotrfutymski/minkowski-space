@@ -2,6 +2,7 @@ use vector2d::Vector2D;
 use crate::m_vector::MVector;
 use crate::photon::{Photon, PhotonEmittingPosition};
 use crate::{MAX_SAFE_SPEED};
+use crate::collision::CollisionGroupId;
 use crate::config::{MotionMode, ObjectConfig};
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -31,8 +32,9 @@ pub struct MObject{
     back_offset: MVector<f64>,
     bottom_offset: MVector<f64>,
     top_offset: MVector<f64>,
-    
+
     proper_time_step: f64,
+    collision_group: Option<CollisionGroupId>,
 
 }
 
@@ -55,6 +57,7 @@ impl MObject{
             bottom_offset: Default::default(),
             top_offset: Default::default(),
             proper_time_step: update_ratio,
+            collision_group: object_config.collision_group,
         };
         if object_config.motion_mode == MotionMode::AlwaysConstantVelocity {
             res.ready_constant_v()

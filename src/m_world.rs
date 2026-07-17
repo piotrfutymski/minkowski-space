@@ -3,7 +3,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use rayon::iter::IntoParallelRefIterator;
 use vector2d::Vector2D;
+use crate::collision::{Collision, CollisionCalculator};
 use crate::config::{MotionMode, ObjectConfig, WorldConfig};
+use crate::m_event::EventDetection;
 use crate::m_object::{MObject, ObjectState};
 use crate::m_vector::MVector;
 use crate::object_tracker::{ObjectTracker, ReceiverData};
@@ -18,6 +20,11 @@ pub struct MWorld {
     registered_objects: HashMap<usize, (MObject, ObjectTracker)>,
 
     counter: usize
+}
+
+pub enum ProcessTimeCallback{
+    Collision(Collision),
+    EventDetection(EventDetection),
 }
 
 impl MWorld {
@@ -60,13 +67,7 @@ impl MWorld {
             .registered_objects
             .get(&id)
             .map(|e| match e.1.get_object_was_seen() {
-                true => ObjectObservation::Visible(VisibleObjectObservation {
-                    relative_position: *e.1.get_relative_visible_position(),
-                    basis_x: *e.1.get_basis_x(),
-                    basis_y: *e.1.get_basis_y(),
-                    relative_frequency: e.1.get_relative_frequency(),
-                    visible_position: *e.1.get_visible_m_vector(),
-                }),
+                true => ObjectObservation::Visible(e.1.to_visible_observation()),
                 false => ObjectObservation::NotVisible
             })
     }
@@ -76,13 +77,7 @@ impl MWorld {
             .registered_objects
             .get(&id)
             .map(|e| match e.1.get_object_was_seen() {
-                true => Some(VisibleObjectObservation {
-                    relative_position: *e.1.get_relative_visible_position(),
-                    basis_x: *e.1.get_basis_x(),
-                    basis_y: *e.1.get_basis_y(),
-                    relative_frequency: e.1.get_relative_frequency(),
-                    visible_position: *e.1.get_visible_m_vector(),
-                }),
+                true => Some(e.1.to_visible_observation()),
                 false => None
             }).flatten()
     }
@@ -95,7 +90,7 @@ impl MWorld {
         &mut self.frame_object
     }
 
-    pub fn process_time(&mut self, delta: f64){
+    pub fn process_time(&mut self, delta: f64) -> Vec<ProcessTimeCallback> {
         self.frame_object.process_tau(delta);
         let target_time = self.frame_object.get_m_pos().time;
         let receiver_data = Arc::new(ReceiverData{
@@ -108,6 +103,11 @@ impl MWorld {
                 let photons = object.process_time(target_time);
                 tracker.track_photons(photons);
                 tracker.recalculate_properties(&object, receiver_data.as_ref(), delta)
-            })
+            });
+        let mut res = CollisionCalculator { }.calculate_collisions()
+            .into_iter()
+            .map(|c|{ProcessTimeCallback::Collision(c)})
+            .collect::<_>();
+        res
     }
 }

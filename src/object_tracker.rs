@@ -2,6 +2,7 @@ use std::collections::{HashMap, VecDeque};
 use vector2d::Vector2D;
 use crate::m_vector::MVector;
 use crate::m_object::MObject;
+use crate::observation::VisibleObjectObservation;
 use crate::photon::{Photon, PhotonEmittingPosition};
 
 #[derive(Clone, Debug, Default)]
@@ -165,6 +166,16 @@ impl ObjectTracker {
 
     pub fn get_object_was_seen(&self) -> bool {
         self.object_was_seen
+    }
+
+    pub fn to_visible_observation(&self) -> VisibleObjectObservation {
+        VisibleObjectObservation {
+            relative_position: self.relative_visible_position,
+            basis_x: self.basis_x,
+            basis_y: self.basis_y,
+            relative_frequency: self.relative_frequency,
+            visible_position: self.visible_m_vector,
+        }
     }
 }
 
