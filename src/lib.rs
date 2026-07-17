@@ -15,4 +15,5 @@ mod photon;
 pub mod m_world;
 pub mod config;
 pub mod collision;
-mod m_event;
+pub mod m_event;
+pub mod observation;

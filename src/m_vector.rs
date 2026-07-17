@@ -1,7 +1,7 @@
 use std::ops::{Add, Div, Mul, Sub};
 use vector2d::Vector2D;
 
-#[derive(Copy, Clone, Default, Debug)]
+#[derive(Copy, Clone, Default, Debug, PartialEq)]
 pub struct MVector<T>{
     pub pos: Vector2D<T>,
     pub time: T,

@@ -3,6 +3,16 @@ use crate::m_vector::MVector;
 use crate::photon::{Photon, PhotonEmittingPosition};
 use crate::{MAX_SAFE_SPEED};
 use crate::config::{MotionMode, ObjectConfig};
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct ObjectState {
+    pub position: MVector<f64>,
+    pub proper_time: f64,
+    pub velocity: Vector2D<f64>,
+    pub acceleration: Vector2D<f64>,
+    pub radius: f64,
+    pub motion_mode: MotionMode,
+}
 pub struct MObject{
 
     motion_mode: MotionMode,
@@ -176,6 +186,17 @@ impl MObject{
 
     pub(crate) fn get_proper_time_step(&self) -> f64 {
         self.proper_time_step
+    }
+
+    pub(crate) fn state(self: &MObject) -> ObjectState {
+        ObjectState {
+            position: self.m_pos,
+            proper_time: self.tau,
+            velocity: self.velocity,
+            acceleration: self.acceleration,
+            radius: self.radius,
+            motion_mode: self.motion_mode,
+        }
     }
 }
 

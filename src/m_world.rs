@@ -4,12 +4,13 @@ use std::sync::Arc;
 use rayon::iter::IntoParallelRefIterator;
 use vector2d::Vector2D;
 use crate::config::{MotionMode, ObjectConfig, WorldConfig};
-use crate::m_object::MObject;
+use crate::m_object::{MObject, ObjectState};
 use crate::m_vector::MVector;
 use crate::object_tracker::{ObjectTracker, ReceiverData};
+use crate::observation::{ObjectObservation, VisibleObjectObservation};
 
 pub struct MWorld {
-    
+
     config: WorldConfig,
 
     frame_object: MObject,
@@ -48,8 +49,42 @@ impl MWorld {
         self.registered_objects.remove(id);
     }
 
-    pub fn get_object_with_properties(&self, id: &usize) -> Option<&(MObject, ObjectTracker)>{
-        self.registered_objects.get(id)
+    pub fn object(&self, id: &usize) -> Option<ObjectState> {
+        self
+            .registered_objects
+            .get(&id)
+            .map(|e|e.0.state())
+    }
+    pub fn observe_object(&self, id: &usize) -> Option<ObjectObservation> {
+        self
+            .registered_objects
+            .get(&id)
+            .map(|e| match e.1.get_object_was_seen() {
+                true => ObjectObservation::Visible(VisibleObjectObservation {
+                    relative_position: *e.1.get_relative_visible_position(),
+                    basis_x: *e.1.get_basis_x(),
+                    basis_y: *e.1.get_basis_y(),
+                    relative_frequency: e.1.get_relative_frequency(),
+                    visible_position: *e.1.get_visible_m_vector(),
+                }),
+                false => ObjectObservation::NotVisible
+            })
+    }
+
+    pub fn observe_visible_object(&self, id: &usize) -> Option<VisibleObjectObservation> {
+        self
+            .registered_objects
+            .get(&id)
+            .map(|e| match e.1.get_object_was_seen() {
+                true => Some(VisibleObjectObservation {
+                    relative_position: *e.1.get_relative_visible_position(),
+                    basis_x: *e.1.get_basis_x(),
+                    basis_y: *e.1.get_basis_y(),
+                    relative_frequency: e.1.get_relative_frequency(),
+                    visible_position: *e.1.get_visible_m_vector(),
+                }),
+                false => None
+            }).flatten()
     }
 
     pub fn get_object_mut(&mut self, id: &usize)-> Option<&mut MObject>{
