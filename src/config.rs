@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 use crate::m_vector::MVector;
 use vector2d::Vector2D;
-use crate::collision::{CollisionGroupId, CollisionGroupPair};
+use crate::collision::{CollisionGroup, CollisionGroupId, CollisionGroupPair};
 
 /// The integration strategy used by an object.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -12,34 +12,60 @@ pub enum MotionMode {
     Dynamic,
 }
 
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum StartPosition {
+    Position(MVector<f64>),
+    PositionNow(Vector2D<f64>),
+}
+
 /// Immutable physical configuration used when spawning an object.
 #[derive(Copy, Clone, Debug)]
 pub struct ObjectConfig {
-    pub position: MVector<f64>,
+    pub position: StartPosition,
     pub velocity: Vector2D<f64>,
     pub radius: f64,
     pub motion_mode: MotionMode,
-    pub collision_group: Option<CollisionGroupId>,
+    pub collision_group: CollisionGroup,
 }
 
 impl ObjectConfig {
-    pub(crate) fn default() -> ObjectConfig {
+
+    pub fn at_position_with_const_speed(initial_pos: Vector2D<f64>, initial_velocity: Vector2D<f64>) -> ObjectConfig {
         ObjectConfig{
-            position: Default::default(),
-            velocity: Default::default(),
+            position: StartPosition::PositionNow(initial_pos),
+            velocity: initial_velocity,
             radius: 0.0,
-            motion_mode: MotionMode::Dynamic,
-            collision_group: None,
+            motion_mode: MotionMode::AlwaysConstantVelocity,
+            collision_group: CollisionGroup::Empty,
         }
     }
 
-    pub(crate) fn default_with_group(collision_group_id: Option<CollisionGroupId>) -> ObjectConfig {
+    pub fn at_position(initial_pos: Vector2D<f64>) -> ObjectConfig {
         ObjectConfig{
-            position: Default::default(),
+            position: StartPosition::PositionNow(initial_pos),
             velocity: Default::default(),
             radius: 0.0,
             motion_mode: MotionMode::Dynamic,
-            collision_group: collision_group_id,
+            collision_group: CollisionGroup::Empty,
+        }
+    }
+    pub fn default() -> ObjectConfig {
+        ObjectConfig{
+            position: StartPosition::Position(Default::default()),
+            velocity: Default::default(),
+            radius: 0.0,
+            motion_mode: MotionMode::Dynamic,
+            collision_group: CollisionGroup::Empty,
+        }
+    }
+
+    pub fn default_with_group(collision_group: CollisionGroup) -> ObjectConfig {
+        ObjectConfig{
+            position: StartPosition::Position(Default::default()),
+            velocity: Default::default(),
+            radius: 0.0,
+            motion_mode: MotionMode::Dynamic,
+            collision_group,
         }
     }
 }
@@ -51,7 +77,7 @@ pub struct WorldConfig {
     pub spatial_hash_cell_size: f64,
     pub collision_groups: BTreeSet<CollisionGroupId>,
     pub collision_pairs: BTreeSet<CollisionGroupPair>,
-    pub frame_collision_group: Option<CollisionGroupId>,
+    pub frame_collision_group: CollisionGroup,
 }
 
 impl Default for WorldConfig {
@@ -61,7 +87,7 @@ impl Default for WorldConfig {
             spatial_hash_cell_size: 1.0,
             collision_groups: BTreeSet::new(),
             collision_pairs: BTreeSet::new(),
-            frame_collision_group: None,
+            frame_collision_group: CollisionGroup::Empty,
         }
     }
 }

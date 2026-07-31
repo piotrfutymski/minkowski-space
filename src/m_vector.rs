@@ -1,5 +1,16 @@
 use std::ops::{Add, Div, Mul, Sub};
+use lazy_static::lazy_static;
 use vector2d::Vector2D;
+const IDENTITY_TRANSFORM: MVector<MVector<f64>> = MVector{
+    pos: Vector2D {
+        x: MVector{ pos: Vector2D { x: 1.0, y: 0.0 }, time: 0.0 },
+        y: MVector{ pos: Vector2D { x: 0.0, y: 1.0 }, time: 0.0 },
+    },
+    time: MVector{
+        pos: Vector2D{x: 0.0, y: 0.0},
+        time: 1.0,
+    }
+};
 
 #[derive(Copy, Clone, Default, Debug, PartialEq)]
 pub struct MVector<T>{
@@ -81,6 +92,20 @@ impl MVector<f64> {
         self.length_squared() == 0.0
     }
 
+    pub fn dot(&self, rhs: &MVector<f64>) -> f64{
+        self.pos.x * rhs.pos.x + self.pos.y * rhs.pos.y + self.time * rhs.time
+    }
+
+    pub fn transform(&self, matrix: MVector<MVector<f64>>) -> Self {
+        MVector{
+            pos: Vector2D {
+                x: matrix.pos.x.dot(self),
+                y: matrix.pos.y.dot(self)
+            },
+            time: matrix.time.dot(self),
+        }
+    }
+
     pub fn zero() -> Self{
         Self{
             pos: Vector2D::new(0.0, 0.0),
@@ -89,23 +114,49 @@ impl MVector<f64> {
     }
 
     pub fn lorentz_transform(&self, velocity: Vector2D<f64>) -> Self{
-        let v_length = velocity.length();
-        if v_length == 0.0 {
-            return self.clone()
+        self.transform(self.lorentz_transform_matrix(velocity))
+    }
+
+    pub fn lorentz_transform_matrix(&self, velocity: Vector2D<f64>) -> MVector<MVector<f64>>{
+        let v_length_squared = velocity.length_squared();
+        let gamma = 1.0/(1.0 - v_length_squared).sqrt();
+        self.lorentz_transform_matrix_with_precalculated_gamma(velocity, gamma)
+    }
+
+    pub fn lorentz_transform_matrix_with_precalculated_gamma(&self, velocity: Vector2D<f64>, gamma: f64) -> MVector<MVector<f64>>{
+        let vx_squared = velocity.x * velocity.x;
+        let vy_squared = velocity.y * velocity.y;
+        let v_length_squared = vx_squared + vy_squared;
+        if v_length_squared == 0.0 {
+            return IDENTITY_TRANSFORM
         }
-        let gamma = 1.0/(1.0 - v_length * v_length).sqrt();
-
-        let v_direction = velocity.normalise();
-
-        let pos_parallel = v_direction * Vector2D::dot(v_direction, self.pos);
-        let pos_perp = self.pos - pos_parallel;
-
-        let pos_parallel_prime = (pos_parallel - velocity * self.time) * gamma;
-        let pos_prime = pos_perp + pos_parallel_prime;
-        let t_prime = gamma * (self.time - Vector2D::dot(velocity, self.pos));
-        Self{
-            pos: pos_prime,
-            time: t_prime,
+        let min_vx_gamma = - velocity.x * gamma;
+        let min_vy_gamma = - velocity.y * gamma;
+        let vx_vy = velocity.x * velocity.y;
+        let one_over_v_length_squared = 1.0 / v_length_squared;
+        let gamma_over_v_length_squared = gamma * one_over_v_length_squared;
+        let matrix_element = gamma_over_v_length_squared * vx_vy - one_over_v_length_squared * vx_vy;
+        MVector{
+            pos: Vector2D{
+                x: MVector{
+                    pos: Vector2D {
+                        x: gamma_over_v_length_squared * vx_squared + one_over_v_length_squared * vy_squared,
+                        y: matrix_element,
+                    },
+                    time: min_vx_gamma,
+                },
+                y: MVector{
+                    pos: Vector2D {
+                        x: matrix_element,
+                        y: gamma_over_v_length_squared * vy_squared + one_over_v_length_squared * vx_squared,
+                    },
+                    time: min_vy_gamma,
+                },
+            },
+            time: MVector{
+                pos: Vector2D { x: min_vx_gamma, y: min_vy_gamma },
+                time: gamma,
+            },
         }
     }
 }

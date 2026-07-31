@@ -2,8 +2,8 @@ use vector2d::Vector2D;
 use crate::m_vector::MVector;
 use crate::photon::{Photon, PhotonEmittingPosition};
 use crate::{MAX_SAFE_SPEED};
-use crate::collision::CollisionGroupId;
-use crate::config::{MotionMode, ObjectConfig};
+use crate::collision::{CollisionGroup, CollisionGroupId};
+use crate::config::{MotionMode, ObjectConfig, StartPosition};
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct ObjectState {
@@ -34,17 +34,20 @@ pub struct MObject{
     top_offset: MVector<f64>,
 
     proper_time_step: f64,
-    collision_group: Option<CollisionGroupId>,
+    collision_group: CollisionGroup,
 
 }
 
 impl MObject{
-    pub(crate) fn new(object_config: ObjectConfig, update_ratio: f64) -> Self{
+    pub(crate) fn new(object_config: ObjectConfig, update_ratio: f64, world_time: f64) -> Self{
         let mut res = Self{
             motion_mode: object_config.motion_mode,
             radius: object_config.radius,
             tau: 0.0,
-            m_pos: object_config.position,
+            m_pos: match object_config.position {
+                StartPosition::Position(p) => p,
+                StartPosition::PositionNow(p) => MVector::new(world_time, p),
+            },
             velocity: object_config.velocity,
             acceleration: Default::default(),
             t_from_last_update_in_base_frame: 0.0,
@@ -257,7 +260,7 @@ impl MObject{
         let new_vy = one_over_gamma * dvy / (1.0 + speed * dvx);
         let new_v = current_v_direction * new_vx + dvy_vec.normalise() * new_vy;
         self.velocity = new_v;
-        if self.velocity.length_squared() >= 1.0 {
+        if self.velocity.length_squared() >= MAX_SAFE_SPEED {
             self.velocity = self.velocity.normalise() * MAX_SAFE_SPEED
         }
         self.update_offsets();

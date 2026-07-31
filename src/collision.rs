@@ -1,5 +1,3 @@
-//! Public collision facts and collision-group identifiers.
-
 use crate::m_vector::MVector;
 use std::collections::{BTreeMap, BTreeSet};
 use vector2d::Vector2D;
@@ -11,6 +9,13 @@ use vector2d::Vector2D;
 /// most one group.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct CollisionGroupId(pub(crate) u32);
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub enum CollisionGroup {
+    Empty,
+    CollisionGroup(CollisionGroupId),
+    All
+}
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct CollisionGroupPair(pub CollisionGroupId, pub CollisionGroupId);
