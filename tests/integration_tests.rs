@@ -56,3 +56,17 @@ fn test_minkowski_space_const_v(){
 fn test_minkowski_space_non_const_v(){
     test_minkowski_space(MotionMode::Dynamic)
 }
+
+#[test]
+fn test_event_without_callback_still_works() {
+    let mut world = MWorld::new();
+    let id = world.create_event(Vector2D::new(0.0, 0.0));
+
+    // Must not panic
+    world.process_time(0.1);
+
+    // Event should now be observable
+    let obs = world.observe_event(&id);
+    assert!(obs.is_some());
+}
+

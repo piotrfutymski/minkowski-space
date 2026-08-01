@@ -9,7 +9,10 @@ use crate::m_event::{EventDetection, MEvent};
 use crate::m_object::{MObject, ObjectState};
 use crate::m_vector::MVector;
 use crate::object_tracker::{ObjectTracker, ReceiverData};
-use crate::observation::{ObjectObservation, VisibleObjectObservation};
+use crate::observation::{EventObservation, ObjectObservation, VisibleObjectObservation};
+
+/// Type alias for the `on_detection` callback.
+pub type EventDetectionCallback = Box<dyn FnMut(&mut MWorld, &EventDetection)>;
 
 pub struct MWorld {
 
@@ -21,12 +24,14 @@ pub struct MWorld {
     
     events: HashMap<usize, MEvent>,
 
+    /// Optional callbacks registered per event.
+    event_callbacks: HashMap<usize, EventDetectionCallback>,
+
     counter: usize
 }
 
 pub enum ProcessTimeCallback{
     Collision(Collision),
-    EventDetection(EventDetection),
 }
 
 impl MWorld {
@@ -38,6 +43,7 @@ impl MWorld {
             config,
             registered_objects: Default::default(),
             events: Default::default(),
+            event_callbacks: Default::default(),
             counter: 0,
         }
     }
@@ -55,16 +61,98 @@ impl MWorld {
         id
     }
     
+    /// Create a spacetime event without an `on_detection` callback.
     pub fn create_event(&mut self, event_position: Vector2D<f64>) -> usize {
+        self.create_event_impl(event_position, None)
+    }
+
+    /// Create a spacetime event with an `on_detection` callback.
+    ///
+    /// The callback will be invoked each time an object in the world detects
+    /// the event. It receives a mutable reference
+    /// to the [`MWorld`] (so you can spawn objects, change velocities, etc.)
+    /// and an [`EventDetection`] describing the detection.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use vector2d::Vector2D;
+    /// use minkowski_space::m_event::DetectionObject;
+    ///
+    /// let mut world = minkowski_space::m_world::MWorld::new();
+    /// world.create_event_with_callback(
+    ///     Vector2D::new(0.0, 0.0),
+    ///     |world, detection| {
+    ///         match detection.detection_object {
+    ///             DetectionObject::MObject(id) => println!("Event {} detected by object {}", detection.event_id, id),
+    ///             DetectionObject::FrameObject => println!("Event {} detected by frame object", detection.event_id),
+    ///         }
+    ///     },
+    /// );
+    /// ```
+    pub fn create_event_with_callback(
+        &mut self,
+        event_position: Vector2D<f64>,
+        callback: impl FnMut(&mut MWorld, &EventDetection) + 'static,
+    ) -> usize {
+        self.create_event_impl(event_position, Some(Box::new(callback)))
+    }
+
+    /// Create a spacetime event at the given `MVector` position (time + space)
+    /// without an `on_detection` callback.
+    pub fn create_event_at(&mut self, event: MVector<f64>) -> usize {
+        self.create_event_at_impl(event, None)
+    }
+
+    /// Create a spacetime event at the given `MVector` position (time + space)
+    /// with an `on_detection` callback.
+    ///
+    /// See [`create_event_with_callback`](Self::create_event_with_callback) for details about the callback.
+    pub fn create_event_with_callback_at(
+        &mut self,
+        event: MVector<f64>,
+        callback: impl FnMut(&mut MWorld, &EventDetection) + 'static,
+    ) -> usize {
+        self.create_event_at_impl(event, Some(Box::new(callback)))
+    }
+
+    fn create_event_impl(
+        &mut self,
+        event_position: Vector2D<f64>,
+        callback: Option<EventDetectionCallback>,
+    ) -> usize {
         let id = self.counter;
         self.counter += 1;
         let m_event = MEvent::new(MVector::new(self.frame_object.get_m_pos().time, event_position), CollisionGroup::All);
         self.events.insert(id, m_event);
+        if let Some(cb) = callback {
+            self.event_callbacks.insert(id, cb);
+        }
+        id
+    }
+
+    fn create_event_at_impl(
+        &mut self,
+        event: MVector<f64>,
+        callback: Option<EventDetectionCallback>,
+    ) -> usize {
+        let id = self.counter;
+        self.counter += 1;
+        let m_event = MEvent::new(event, CollisionGroup::All);
+        self.events.insert(id, m_event);
+        if let Some(cb) = callback {
+            self.event_callbacks.insert(id, cb);
+        }
         id
     }
 
     pub fn unregister_object(&mut self, id: &usize) {
         self.registered_objects.remove(id);
+    }
+
+    pub fn unregister_event(&mut self, id: &usize) {
+        self.events.remove(id);
+        self.event_callbacks.remove(id);
     }
 
     pub fn object(&self, id: &usize) -> Option<ObjectState> {
@@ -81,6 +169,24 @@ impl MWorld {
                 true => ObjectObservation::Visible(e.1.to_visible_observation()),
                 false => ObjectObservation::NotVisible
             })
+    }
+
+    /// Observes an event in the current frame of the world observer.
+    ///
+    /// An event is visible once the observer is inside its future light cone.
+    /// The returned position is relative to the observer and is expressed in
+    /// the observer's frame (the same convention as `observe_object`).
+    pub fn observe_event(&self, id: &usize) -> Option<EventObservation> {
+        self.events.get(id).map(|event| {
+            let relative = self.frame_object.get_m_pos().clone() - event.position();
+            if relative.is_time_or_light_like() && relative.time >= 0.0 {
+                EventObservation::Visible(
+                    relative.lorentz_transform(*self.frame_object.get_velocity()),
+                )
+            } else {
+                EventObservation::NotVisible
+            }
+        })
     }
 
     pub fn observe_visible_object(&self, id: &usize) -> Option<VisibleObjectObservation> {
@@ -135,10 +241,9 @@ impl MWorld {
                 tracker.track_photons(photons);
                 tracker.recalculate_properties(&object, receiver_data.as_ref(), delta)
             });
-        let res = CollisionCalculator { }.calculate_collisions()
+        CollisionCalculator { }.calculate_collisions()
             .into_iter()
             .map(|c|{ProcessTimeCallback::Collision(c)})
-            .collect::<_>();
-        res
+            .collect::<_>()
     }
 }
