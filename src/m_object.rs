@@ -69,21 +69,16 @@ impl MObject{
         res
     }
 
-    pub(crate) fn process_tau(&mut self, tau: f64){
+    pub(crate) fn process_as_frame_object_tau(&mut self, tau: f64){
         let mut gamma = self.gamma();
         let mut rest_tau = tau;
-        let mut update_ratio_in_base_frame = self.proper_time_step * gamma;
+        let mut dt = self.proper_time_step * gamma;
         while rest_tau > self.proper_time_step {
             rest_tau -= self.proper_time_step;
-            self.m_pos = self.m_pos + MVector::new(update_ratio_in_base_frame, self.velocity * update_ratio_in_base_frame);
-            if self.acceleration.length() > 0.0 {
-                self.accelerate(self.proper_time_step);
-                gamma = self.gamma();
-            }
-            update_ratio_in_base_frame = self.proper_time_step * gamma;
+            self.position_velocity_update(&mut gamma, &mut dt);
         }
-        update_ratio_in_base_frame = rest_tau * gamma;
-        self.m_pos = self.m_pos + MVector::new(update_ratio_in_base_frame, self.velocity * update_ratio_in_base_frame);
+        dt = rest_tau * gamma;
+        self.m_pos = self.m_pos + MVector::new(dt, self.velocity * dt);
         if self.acceleration.length() > 0.0 {
             self.accelerate(rest_tau);
         }
@@ -102,20 +97,24 @@ impl MObject{
             vec![]
         } else {
             let mut res = vec![];
-            let mut update_ratio_in_base_frame = self.proper_time_step * gamma;
+            let mut dt = self.proper_time_step * gamma;
             self.t_from_last_update_in_base_frame += delta;
-            while self.check_for_next_update(update_ratio_in_base_frame) {
-                self.m_pos = self.m_pos + MVector::new(update_ratio_in_base_frame, self.velocity * update_ratio_in_base_frame);
-                if self.acceleration.length() > 0.0 {
-                    self.accelerate(self.proper_time_step);
-                    gamma = self.gamma();
-                }
+            while self.check_for_next_update(dt) {
+                self.position_velocity_update(&mut gamma, &mut dt);
                 self.tau += self.proper_time_step;
-                update_ratio_in_base_frame = self.proper_time_step * gamma;
                 res.append(&mut self.emmit_all_photons())
             }
             res
         }
+    }
+
+    fn position_velocity_update(&mut self, gamma: &mut f64, dt: &mut f64) {
+        self.m_pos = self.m_pos + MVector::new(*dt, self.velocity * *dt);
+        if self.acceleration.length() > 0.0 {
+            self.accelerate(self.proper_time_step);
+            *gamma = self.gamma();
+        }
+        *dt = self.proper_time_step * *gamma;
     }
 
     pub fn gamma(&self) -> f64{

@@ -15,6 +15,6 @@ fn main() {
 
     let light_event = world.create_event(Vector2D::new(0.0, 0.0));
 
-    world.process_time(2.0);
+    let events = world.process_time(5.0);
 
 }

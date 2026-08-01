@@ -122,7 +122,7 @@ impl MWorld {
     }
 
     pub fn process_time(&mut self, delta: f64) -> Vec<ProcessTimeCallback> {
-        self.frame_object.process_tau(delta);
+        self.frame_object.process_as_frame_object_tau(delta);
         let target_time = self.frame_object.get_m_pos().time;
         let receiver_data = Arc::new(ReceiverData{
             m_pos: *self.frame_object.get_m_pos(),
