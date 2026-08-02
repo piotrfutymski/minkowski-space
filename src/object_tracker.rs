@@ -40,7 +40,7 @@ impl TrackedSource {
         let (constant_velocity_dx, object_radius) = {
             let mut constant_velocity_dx = None;
             if source.constant_velocity() {
-                constant_velocity_dx = Some(source.calculate_between_photons_vector());
+                constant_velocity_dx = Some(*source.between_photons_vector());
             }
             (constant_velocity_dx, source.get_radius())
         };

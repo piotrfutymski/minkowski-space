@@ -199,6 +199,10 @@ impl MObject{
         self.motion_mode == MotionMode::AlwaysConstantVelocity
     }
 
+    pub fn between_photons_vector(&self) -> &MVector<f64> {
+        &self.constant_between_photons_vector
+    }
+
     pub fn get_radius(&self) -> f64 {
         self.radius
     }
