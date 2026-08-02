@@ -227,8 +227,8 @@ impl MObject{
         if self.motion_mode == MotionMode::AlwaysConstantVelocity {
             return;
         }
-        self.update_offsets();
         self.velocity = velocity;
+        self.update_offsets();
     }
 
     pub fn set_acceleration(&mut self, acceleration: Vector2D<f64>) {
@@ -320,7 +320,7 @@ impl MObject{
         let new_vy = one_over_gamma * dvy / (1.0 + speed * dvx);
         let new_v = current_v_direction * new_vx + dvy_vec.normalise() * new_vy;
         self.velocity = new_v;
-        if self.velocity.length_squared() >= MAX_SAFE_SPEED {
+        if self.velocity.length_squared() >= crate::MAX_SAFE_SPEED_SQUARED {
             self.velocity = self.velocity.normalise() * MAX_SAFE_SPEED
         }
         self.update_offsets();

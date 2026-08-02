@@ -34,7 +34,7 @@ fn valid_number(value: f64, field: &'static str) -> Result<(), ConfigError> {
 fn valid_velocity(v: Vector2D<f64>) -> Result<(), ConfigError> {
     valid_number(v.x, "velocity.x")?;
     valid_number(v.y, "velocity.y")?;
-    if v.length_squared() >= crate::MAX_SAFE_SPEED { return Err(ConfigError::SuperluminalVelocity); }
+    if v.length_squared() >= crate::MAX_SAFE_SPEED_SQUARED { return Err(ConfigError::SuperluminalVelocity); }
     Ok(())
 }
 

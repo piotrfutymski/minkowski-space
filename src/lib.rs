@@ -6,7 +6,9 @@
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::expect_used)]
 
-pub static MAX_SAFE_SPEED: f64 = 1.0 - 10e-6;
+pub static MAX_SAFE_SPEED: f64 = 1.0 - 1e-6;
+pub(crate) static MAX_SAFE_SPEED_SQUARED: f64 =
+    MAX_SAFE_SPEED * MAX_SAFE_SPEED;
 
 pub mod m_vector;
  mod m_object;

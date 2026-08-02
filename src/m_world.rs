@@ -247,7 +247,7 @@ impl MWorld {
     }
     
     pub fn set_velocity(&mut self, id: &usize, velocity: Vector2D<f64>) -> Result<(), crate::config::ConfigError>{
-        if !velocity.x.is_finite() || !velocity.y.is_finite() || velocity.length_squared() >= crate::MAX_SAFE_SPEED {
+        if !velocity.x.is_finite() || !velocity.y.is_finite() || velocity.length_squared() >= crate::MAX_SAFE_SPEED_SQUARED {
             return Err(crate::config::ConfigError::SuperluminalVelocity);
         }
         if let Some(object) = self.registered_objects.get_mut(id){
@@ -350,7 +350,9 @@ impl MWorld {
         };
         if let Some(mut callback) = self.event_callbacks.remove(&event_id) {
             callback(self, &detection);
-            self.event_callbacks.insert(event_id, callback);
+            if self.events.contains_key(&event_id) {
+                self.event_callbacks.insert(event_id, callback);
+            }
         }
         Some(ProcessTimeCallback::Event(detection))
     }
@@ -378,7 +380,9 @@ impl MWorld {
         };
         if let Some(mut callback) = self.event_callbacks.remove(&event_id) {
             callback(self, &detection);
-            self.event_callbacks.insert(event_id, callback);
+            if self.events.contains_key(&event_id) {
+                self.event_callbacks.insert(event_id, callback);
+            }
         }
         Some(ProcessTimeCallback::Event(detection))
     }
