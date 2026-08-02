@@ -80,6 +80,22 @@ impl<T> Div<T> for MVector<T> where T: Div<T, Output=T> + Copy{
     }
 }
 
+/// The causal character of a spacetime vector.
+///
+/// Determined by the sign of `time² - x² - y²`:
+/// - `TimeLike`: the interval is positive (inside the light-cone)
+/// - `LightLike`: the interval is zero (on the light-cone)
+/// - `SpaceLike`: the interval is negative (outside the light-cone)
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Causality {
+    /// The interval is positive – inside the light-cone.
+    TimeLike,
+    /// The interval is zero – on the light-cone (within floating-point tolerance).
+    LightLike,
+    /// The interval is negative – outside the light-cone.
+    SpaceLike,
+}
+
 impl MVector<f64> {
 
     /// Creates a spacetime vector from its time and spatial components.
@@ -114,23 +130,52 @@ impl MVector<f64> {
         self.length_squared().abs().sqrt()
     }
 
+    /// Classifies the causal character of the vector.
+    ///
+    /// Uses a scale-aware epsilon for the light-like case so that very
+    /// large vectors are not misclassified due to floating-point noise.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use minkowski_space::{MVector, Vector2D, Causality};
+    ///
+    /// assert_eq!(MVector::new(5.0, Vector2D::new(3.0, 0.0)).causal_character(), Causality::TimeLike);
+    /// assert_eq!(MVector::new(1.0, Vector2D::new(1.0, 0.0)).causal_character(), Causality::LightLike);
+    /// assert_eq!(MVector::new(0.0, Vector2D::new(1.0, 0.0)).causal_character(), Causality::SpaceLike);
+    /// ```
+    pub fn causal_character(&self) -> Causality {
+        let interval = self.length_squared();
+        if !interval.is_finite() {
+            return Causality::SpaceLike;
+        }
+        let eps = 1e-12 * (1.0 + self.time.powi(2).max(self.pos.length_squared()));
+        if interval > eps {
+            Causality::TimeLike
+        } else if interval < -eps {
+            Causality::SpaceLike
+        } else {
+            Causality::LightLike
+        }
+    }
+
     /// Returns `true` if the vector is time-like.
     ///
-    /// This is equivalent to `length_squared() > 0.0`.
+    /// This is equivalent to `causal_character() == Causality::TimeLike`.
     pub fn is_time_like(&self) -> bool{
-        self.length_squared() > 0.0
+        self.causal_character() == Causality::TimeLike
     }
 
     /// Returns `true` if the vector is time-like or light-like.
     pub fn is_time_or_light_like(&self) -> bool{
-        self.length_squared() >= 0.0
+        matches!(self.causal_character(), Causality::TimeLike | Causality::LightLike)
     }
 
     /// Returns `true` if the vector is space-like.
     ///
-    /// This is equivalent to `length_squared() < 0.0`.
+    /// This is equivalent to `causal_character() == Causality::SpaceLike`.
     pub fn is_space_like(&self) -> bool{
-        self.length_squared() < 0.0
+        self.causal_character() == Causality::SpaceLike
     }
 
     /// Returns `true` if the vector has a zero Minkowski interval within a
@@ -138,23 +183,22 @@ impl MVector<f64> {
     ///
     /// Non-finite intervals are never considered light-like.
     pub fn is_light_like(&self) -> bool{
-        let interval = self.length_squared();
-        interval.is_finite() && interval.abs() <= 1e-12 * (1.0 + self.time.abs().max(self.pos.length()).powi(2))
+        self.causal_character() == Causality::LightLike
     }
 
-    /// Computes the bilinear form `time₁ * time₂ + x₁ * x₂ + y₁ * y₂`.
+    /// Computes the Euclidean dot product `x₁*x₂ + y₁*y₂ + t₁*t₂`.
     ///
-    /// Note that this is the component-wise dot product used by the matrix
-    /// representation in this module; the Minkowski interval itself is
-    /// computed by [`length_squared`](Self::length_squared).
-    pub fn dot(&self, rhs: &MVector<f64>) -> f64{
+    /// This is **not** the Minkowski metric – use [`length_squared`](Self::length_squared)
+    /// for the relativistic interval. This method is `pub(crate)` because it
+    /// is only needed for the matrix-multiplication helpers inside this module.
+    pub(crate) fn euclidean_dot(&self, rhs: &MVector<f64>) -> f64{
         self.pos.x * rhs.pos.x + self.pos.y * rhs.pos.y + self.time * rhs.time
     }
 
     /// Applies a 3×3 linear transformation represented by nested vectors.
     ///
     /// The outer vector contains the rows for `x`, `y`, and `time`; each row
-    /// is dotted with `self` using [`dot`](Self::dot).
+    /// is dotted with `self` using [`euclidean_dot`](Self::euclidean_dot).
     ///
     /// # Example
     ///
@@ -175,10 +219,10 @@ impl MVector<f64> {
     pub fn transform(&self, matrix: MVector<MVector<f64>>) -> Self {
         MVector{
             pos: Vector2D {
-                x: matrix.pos.x.dot(self),
-                y: matrix.pos.y.dot(self)
+                x: matrix.pos.x.euclidean_dot(self),
+                y: matrix.pos.y.euclidean_dot(self)
             },
-            time: matrix.time.dot(self),
+            time: matrix.time.euclidean_dot(self),
         }
     }
 
@@ -214,7 +258,7 @@ impl MVector<f64> {
     /// assert_ne!(at_some_moving_frame, event);
     /// ```
     pub fn lorentz_transform(&self, velocity: Vector2D<f64>) -> Self{
-        self.transform(self.lorentz_transform_matrix(velocity))
+        self.transform(MVector::lorentz_transform_matrix(velocity))
     }
 
     /// Builds the Lorentz transformation matrix for `velocity`.
@@ -222,12 +266,12 @@ impl MVector<f64> {
     /// The returned matrix can be passed to [`transform`](Self::transform).
     /// The velocity is measured in units where the speed of light is `1` and
     /// must satisfy `velocity.length_squared() < 1.0`.
-    pub fn lorentz_transform_matrix(&self, velocity: Vector2D<f64>) -> MVector<MVector<f64>>{
+    pub fn lorentz_transform_matrix(velocity: Vector2D<f64>) -> MVector<MVector<f64>>{
         let v_length_squared = velocity.length_squared();
         let gamma = 1.0/(1.0 - v_length_squared).sqrt();
-        self.lorentz_transform_matrix_with_precalculated_gamma(velocity, gamma)
+        Self::lorentz_transform_matrix_with_precalculated_gamma(velocity, gamma)
     }
-    pub(crate) fn lorentz_transform_matrix_with_precalculated_gamma(&self, velocity: Vector2D<f64>, gamma: f64) -> MVector<MVector<f64>>{
+    pub(crate) fn lorentz_transform_matrix_with_precalculated_gamma(velocity: Vector2D<f64>, gamma: f64) -> MVector<MVector<f64>>{
         let vx_squared = velocity.x * velocity.x;
         let vy_squared = velocity.y * velocity.y;
         let v_length_squared = vx_squared + vy_squared;
