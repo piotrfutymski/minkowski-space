@@ -72,6 +72,8 @@ impl MVector<f64> {
         self.time.powi(2) - self.pos.length_squared()
     }
 
+    /// Absolute interval magnitude. Use `length_squared` and the causal
+    /// predicates when the time-like/space-like sign matters.
     pub fn length(&self) -> f64{
         self.length_squared().abs().sqrt()
     }
@@ -89,7 +91,8 @@ impl MVector<f64> {
     }
 
     pub fn is_light_like(&self) -> bool{
-        self.length_squared() == 0.0
+        let interval = self.length_squared();
+        interval.is_finite() && interval.abs() <= 1e-12 * (1.0 + self.time.abs().max(self.pos.length()).powi(2))
     }
 
     pub fn dot(&self, rhs: &MVector<f64>) -> f64{

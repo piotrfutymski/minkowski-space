@@ -6,13 +6,8 @@
 
 use std::cell::RefCell;
 use std::rc::Rc;
-
-use minkowski_space::config::ObjectConfig;
-use minkowski_space::m_event::DetectionObject;
-use minkowski_space::m_vector::MVector;
-use minkowski_space::m_world::MWorld;
 use vector2d::Vector2D;
-use minkowski_space::observation::EventObservation;
+use minkowski_space::{DetectionObject, EventObservation, MVector, MWorld, ObjectConfig};
 
 fn main() {
     let vehicle_velocity = Vector2D::new(0.6, 0.0);
@@ -55,7 +50,7 @@ fn main() {
     );
 
     // Allow both pulses to reach their mirrors, with a small time margin.
-    world.process_time(3.0);
+    world.advance_by_proper_time(3.0);
 
     let left_event = world
         .event(&left_detection_event.borrow())

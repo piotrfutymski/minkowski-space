@@ -54,7 +54,8 @@ impl MWorld {
         }
     }
 
-    pub fn register_object(&mut self, object_config: ObjectConfig) -> usize{
+    pub fn try_register_object(&mut self, object_config: ObjectConfig) -> Result<usize, crate::config::ConfigError>{
+        object_config.validate()?;
         let mut m_object = MObject::new(object_config, self.config.proper_time_step, self.frame_object.position().time);
         let mut object_tracker = ObjectTracker::new();
         let id = self.counter;
@@ -71,7 +72,13 @@ impl MWorld {
                 .map(|e|*e.0).collect()
         );
         self.registered_objects.insert(id, (m_object, object_tracker));
-        id
+        Ok(id)
+    }
+
+    /// Registers an object. Prefer [`Self::try_register_object`] when invalid
+    /// user input must be reported to the caller.
+    pub fn register_object(&mut self, object_config: ObjectConfig) -> usize {
+        self.try_register_object(object_config).unwrap_or_else(|_| usize::MAX)
     }
     
     /// Create a spacetime event without an `on_detection` callback.
@@ -90,9 +97,9 @@ impl MWorld {
     ///
     /// ```
     /// use vector2d::Vector2D;
-    /// use minkowski_space::m_event::DetectionObject;
+    /// use minkowski_space::DetectionObject;
     ///
-    /// let mut world = minkowski_space::m_world::MWorld::new();
+    /// let mut world = minkowski_space::MWorld::new();
     /// world.create_event_with_callback(
     ///     Vector2D::new(0.0, 0.0),
     ///     |world, detection| {
@@ -239,10 +246,16 @@ impl MWorld {
             }).flatten()
     }
     
-    pub fn set_velocity(&mut self, id: &usize, velocity: Vector2D<f64>){
-        if let Some(object) = self.registered_objects.get_mut(id){
-            object.0.set_velocity(velocity);
+    pub fn set_velocity(&mut self, id: &usize, velocity: Vector2D<f64>) -> Result<(), crate::config::ConfigError>{
+        if !velocity.x.is_finite() || !velocity.y.is_finite() || velocity.length_squared() >= crate::MAX_SAFE_SPEED {
+            return Err(crate::config::ConfigError::SuperluminalVelocity);
         }
+        if let Some(object) = self.registered_objects.get_mut(id){
+            if object.0.constant_velocity() { return Err(crate::config::ConfigError::UnsupportedOperation("set_velocity on constant-velocity object")); }
+            object.0.set_velocity(velocity);
+            return Ok(())
+        }
+        Err(crate::config::ConfigError::UnsupportedOperation("unknown object"))
     }
 
     pub fn set_acceleration(&mut self, id: &usize, acceleration: Vector2D<f64>){
@@ -267,7 +280,7 @@ impl MWorld {
         *self.frame_object.position()
     }
 
-    pub fn process_time(&mut self, delta: f64) -> Vec<ProcessTimeCallback> {
+    pub fn advance_by_proper_time(&mut self, delta: f64) -> Vec<ProcessTimeCallback> {
         let frame_events_to_check = self.get_frame_events_to_check();
         let frame_detections = self.frame_object.process_as_frame_object_tau(delta, frame_events_to_check);
         let target_time = self.frame_object.position().time;

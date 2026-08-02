@@ -1,12 +1,7 @@
 use std::sync::{Arc, Mutex};
 
-use minkowski_space::collision::CollisionGroup;
-use minkowski_space::config::{MotionMode, ObjectConfig, StartPosition};
-use minkowski_space::m_event::DetectionObject;
-use minkowski_space::m_vector::MVector;
-use minkowski_space::m_world::{MWorld, ProcessTimeCallback};
-use minkowski_space::observation::EventObservation;
 use vector2d::Vector2D;
+use minkowski_space::{CollisionGroup, DetectionObject, EventObservation, MVector, MWorld, MotionMode, ObjectConfig, ProcessTimeCallback, StartPosition};
 
 fn stationary_object(position: Vector2D<f64>) -> ObjectConfig {
     ObjectConfig {
@@ -24,11 +19,11 @@ fn event_becomes_visible_to_frame_after_light_travel_time() {
     let event_id = world.create_event(Vector2D::new(2.0, 0.0));
 
     assert_eq!(world.observe_event(&event_id), Some(EventObservation::NotVisible));
-    let callbacks = world.process_time(1.9);
+    let callbacks = world.advance_by_proper_time(1.9);
     assert!(!callbacks.iter().any(|callback| matches!(callback, ProcessTimeCallback::Event(_))));
     assert_eq!(world.observe_event(&event_id), Some(EventObservation::NotVisible));
 
-    let callbacks = world.process_time(0.2);
+    let callbacks = world.advance_by_proper_time(0.2);
     assert!(callbacks.iter().any(|callback| matches!(callback, ProcessTimeCallback::Event(event)
         if event.event_id == event_id && matches!(event.detection_object, DetectionObject::FrameObject))));
     assert!(matches!(world.observe_event(&event_id), Some(EventObservation::Visible(_))));
@@ -44,7 +39,7 @@ fn callback_reports_frame_and_object_detection_without_duplicates() {
         callback_detections.lock().unwrap().push(detection.detection_object);
     });
 
-    let first = world.process_time(4.0);
+    let first = world.advance_by_proper_time(4.0);
     let events: Vec<_> = first.iter().filter_map(|callback| match callback {
         ProcessTimeCallback::Event(event) => Some(event),
         _ => None,
@@ -59,7 +54,7 @@ fn callback_reports_frame_and_object_detection_without_duplicates() {
     assert!(callback_values.iter().any(|object| matches!(object, DetectionObject::MObject(id) if *id == object_id)));
     drop(callback_values);
 
-    let second = world.process_time(1.0);
+    let second = world.advance_by_proper_time(1.0);
     assert!(!second.iter().any(|callback| matches!(callback, ProcessTimeCallback::Event(event) if event.event_id == event_id)));
     assert_eq!(detections.lock().unwrap().len(), 2);
 }
@@ -77,7 +72,7 @@ fn multiple_objects_detect_same_event_independently() {
         }
     });
 
-    let callbacks = world.process_time(3.0);
+    let callbacks = world.advance_by_proper_time(3.0);
     let object_detections: Vec<_> = callbacks.iter().filter_map(|callback| match callback {
         ProcessTimeCallback::Event(event) => match event.detection_object {
             DetectionObject::MObject(id) => Some(id),

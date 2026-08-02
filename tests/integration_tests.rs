@@ -1,9 +1,6 @@
 use vector2d::Vector2D;
-use minkowski_space::collision::CollisionGroup;
-use minkowski_space::config::{MotionMode, ObjectConfig, StartPosition};
-use minkowski_space::m_world::MWorld;
 use minkowski_space::m_vector::MVector;
-use minkowski_space::observation::ObjectObservation;
+use minkowski_space::{CollisionGroup, MWorld, MotionMode, ObjectConfig, ObjectObservation, StartPosition};
 
 fn test_minkowski_space(motion_mode: MotionMode){
     let mut m_world = MWorld::new();
@@ -19,7 +16,7 @@ fn test_minkowski_space(motion_mode: MotionMode){
     assert_eq!(m_world.observe_object(&id).unwrap(), ObjectObservation::NotVisible);
 
     for _i in 0..60 {
-        m_world.process_time(0.01);
+        m_world.advance_by_proper_time(0.01);
     }
 
     assert_eq!(m_world.observe_object(&id).unwrap(), ObjectObservation::NotVisible);
@@ -31,7 +28,7 @@ fn test_minkowski_space(motion_mode: MotionMode){
 
 
     for _i in 0..15 {
-        m_world.process_time(0.01);
+        m_world.advance_by_proper_time(0.01);
     }
 
     assert!(matches!(m_world.observe_object(&id).unwrap(), ObjectObservation::Visible(_)));
