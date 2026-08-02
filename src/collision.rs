@@ -17,6 +17,24 @@ pub enum CollisionGroup {
     All
 }
 
+impl CollisionGroup {
+    pub(crate) fn collision_group_matches(&self, other: &CollisionGroup) -> bool {
+        match self {
+            CollisionGroup::Empty => {
+                match other {
+                CollisionGroup::All => true,
+                _ => false
+            }}
+            CollisionGroup::CollisionGroup(id) => {match other {
+                CollisionGroup::Empty => false,
+                CollisionGroup::CollisionGroup(id2) => id == id2,
+                CollisionGroup::All => true
+            }}
+            CollisionGroup::All => true
+        }
+    }
+}
+
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct CollisionGroupPair(pub CollisionGroupId, pub CollisionGroupId);
 

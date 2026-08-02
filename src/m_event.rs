@@ -10,8 +10,7 @@ use crate::m_vector::MVector;
 pub struct EventDetection {
     pub event_id: usize,
     pub detection_object: DetectionObject,
-    pub event_position: MVector<f64>,
-    pub world_time: f64,
+    pub event_detection_position: MVector<f64>,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -33,8 +32,12 @@ pub struct MEvent{
 }
 
 impl MEvent {
-    pub(crate) fn position(&self) -> MVector<f64> {
-        self.event_pos
+    pub(crate) fn position(&self) -> &MVector<f64> {
+        &self.event_pos
+    }
+
+    pub(crate) fn collision_group(&self) -> &CollisionGroup {
+        &self.collision_group
     }
 
     pub(crate) fn new(event_pos: MVector<f64>, collision_group: CollisionGroup) -> Self {
