@@ -1,5 +1,4 @@
 use std::ops::{Add, Div, Mul, Sub};
-use lazy_static::lazy_static;
 use vector2d::Vector2D;
 const IDENTITY_TRANSFORM: MVector<MVector<f64>> = MVector{
     pos: Vector2D {
@@ -12,12 +11,30 @@ const IDENTITY_TRANSFORM: MVector<MVector<f64>> = MVector{
     }
 };
 
+/// A vector in a two-dimensional Minkowski spacetime.
+///
+/// The `time` component is stored separately from the two spatial components
+/// in [`pos`]. For `MVector<f64>`, the interval convention used by this type
+/// is `time² - x² - y²`; this is sometimes called the `(+--)` signature.
+///
+/// # Example
+///
+/// ```
+/// use minkowski_space::{MVector, Vector2D};
+///
+/// let event = MVector::new(3.0, Vector2D::new(1.0, 2.0));
+/// assert_eq!(event.time, 3.0);
+/// assert_eq!(event.pos, Vector2D::new(1.0, 2.0));
+/// ```
 #[derive(Copy, Clone, Default, Debug, PartialEq)]
 pub struct MVector<T>{
+    /// The two spatial components of the vector.
     pub pos: Vector2D<T>,
+    /// The time component of the vector.
     pub time: T,
 }
 
+/// Adds the spatial and time components independently.
 impl<T> Add for MVector<T> where T: Add<T, Output = T> + Copy{
     type Output = Self;
 
@@ -29,6 +46,7 @@ impl<T> Add for MVector<T> where T: Add<T, Output = T> + Copy{
     }
 }
 
+/// Subtracts the spatial and time components independently.
 impl<T> Sub for MVector<T>  where T: Sub<T, Output=T> + Copy{
     type Output = Self;
 
@@ -40,6 +58,7 @@ impl<T> Sub for MVector<T>  where T: Sub<T, Output=T> + Copy{
     }
 }
 
+/// Multiplies every component by a scalar.
 impl<T> Mul<T> for MVector<T> where T: Mul<T, Output=T> + Copy{
     type Output = MVector<T>;
     fn mul(self, rhs: T) -> Self::Output {
@@ -50,6 +69,7 @@ impl<T> Mul<T> for MVector<T> where T: Mul<T, Output=T> + Copy{
     }
 }
 
+/// Divides every component by a scalar.
 impl<T> Div<T> for MVector<T> where T: Div<T, Output=T> + Copy{
     type Output = MVector<T>;
     fn div(self, rhs: T) -> Self::Output {
@@ -62,12 +82,28 @@ impl<T> Div<T> for MVector<T> where T: Div<T, Output=T> + Copy{
 
 impl MVector<f64> {
 
+    /// Creates a spacetime vector from its time and spatial components.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use minkowski_space::{MVector, Vector2D};
+    ///
+    /// let vector = MVector::new(2.0, Vector2D::new(3.0, 4.0));
+    /// assert_eq!(vector.length_squared(), -21.0);
+    /// ```
     pub fn new(time: f64, pos: Vector2D<f64>) -> Self{
         Self{
             pos,
             time,
         }
     }
+    /// Returns the signed squared Minkowski length, `time² - x² - y²`.
+    ///
+    /// A positive value denotes a time-like vector, a negative value a
+    /// space-like vector, and zero a light-like vector (up to floating-point
+    /// precision). Unlike [`length`](Self::length), this method preserves the
+    /// causal sign.
     pub fn length_squared(&self) -> f64{
         self.time.powi(2) - self.pos.length_squared()
     }
@@ -78,27 +114,64 @@ impl MVector<f64> {
         self.length_squared().abs().sqrt()
     }
 
+    /// Returns `true` if the vector is time-like.
+    ///
+    /// This is equivalent to `length_squared() > 0.0`.
     pub fn is_time_like(&self) -> bool{
         self.length_squared() > 0.0
     }
 
+    /// Returns `true` if the vector is time-like or light-like.
     pub fn is_time_or_light_like(&self) -> bool{
         self.length_squared() >= 0.0
     }
 
+    /// Returns `true` if the vector is space-like.
+    ///
+    /// This is equivalent to `length_squared() < 0.0`.
     pub fn is_space_like(&self) -> bool{
         self.length_squared() < 0.0
     }
 
+    /// Returns `true` if the vector has a zero Minkowski interval within a
+    /// scale-aware floating-point tolerance.
+    ///
+    /// Non-finite intervals are never considered light-like.
     pub fn is_light_like(&self) -> bool{
         let interval = self.length_squared();
         interval.is_finite() && interval.abs() <= 1e-12 * (1.0 + self.time.abs().max(self.pos.length()).powi(2))
     }
 
+    /// Computes the bilinear form `time₁ * time₂ + x₁ * x₂ + y₁ * y₂`.
+    ///
+    /// Note that this is the component-wise dot product used by the matrix
+    /// representation in this module; the Minkowski interval itself is
+    /// computed by [`length_squared`](Self::length_squared).
     pub fn dot(&self, rhs: &MVector<f64>) -> f64{
         self.pos.x * rhs.pos.x + self.pos.y * rhs.pos.y + self.time * rhs.time
     }
 
+    /// Applies a 3×3 linear transformation represented by nested vectors.
+    ///
+    /// The outer vector contains the rows for `x`, `y`, and `time`; each row
+    /// is dotted with `self` using [`dot`](Self::dot).
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use minkowski_space::{MVector, Vector2D};
+    ///
+    /// let value = MVector::new(2.0, Vector2D::new(3.0, 4.0));
+    /// let identity = MVector {
+    ///     pos: Vector2D {
+    ///         x: MVector::new(0.0, Vector2D::new(1.0, 0.0)),
+    ///         y: MVector::new(0.0, Vector2D::new(0.0, 1.0)),
+    ///     },
+    ///     time: MVector::new(1.0, Vector2D::new(0.0, 0.0)),
+    /// };
+    /// let transformed = value.transform(identity);
+    /// assert_eq!(transformed, value);
+    /// ```
     pub fn transform(&self, matrix: MVector<MVector<f64>>) -> Self {
         MVector{
             pos: Vector2D {
@@ -109,6 +182,15 @@ impl MVector<f64> {
         }
     }
 
+    /// Returns the zero spacetime vector.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use minkowski_space::{MVector, Vector2D};
+    ///
+    /// assert_eq!(MVector::zero(), MVector::new(0.0, Vector2D::new(0.0, 0.0)));
+    /// ```
     pub fn zero() -> Self{
         Self{
             pos: Vector2D::new(0.0, 0.0),
@@ -116,17 +198,36 @@ impl MVector<f64> {
         }
     }
 
+    /// Transforms this vector to a frame moving with the given velocity.
+    ///
+    /// The velocity is expressed in units where the speed of light is `1`.
+    /// Therefore, its squared magnitude must be, smaller than `1`; otherwise
+    /// the Lorentz factor is not finite.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use minkowski_space::{MVector, Vector2D};
+    ///
+    /// let event = MVector::new(3.0, Vector2D::new(1.0, 0.0));
+    /// let at_some_moving_frame = event.lorentz_transform(Vector2D::new(0.6, 0.0));
+    /// assert_ne!(at_some_moving_frame, event);
+    /// ```
     pub fn lorentz_transform(&self, velocity: Vector2D<f64>) -> Self{
         self.transform(self.lorentz_transform_matrix(velocity))
     }
 
+    /// Builds the Lorentz transformation matrix for `velocity`.
+    ///
+    /// The returned matrix can be passed to [`transform`](Self::transform).
+    /// The velocity is measured in units where the speed of light is `1` and
+    /// must satisfy `velocity.length_squared() < 1.0`.
     pub fn lorentz_transform_matrix(&self, velocity: Vector2D<f64>) -> MVector<MVector<f64>>{
         let v_length_squared = velocity.length_squared();
         let gamma = 1.0/(1.0 - v_length_squared).sqrt();
         self.lorentz_transform_matrix_with_precalculated_gamma(velocity, gamma)
     }
-
-    pub fn lorentz_transform_matrix_with_precalculated_gamma(&self, velocity: Vector2D<f64>, gamma: f64) -> MVector<MVector<f64>>{
+    pub(crate) fn lorentz_transform_matrix_with_precalculated_gamma(&self, velocity: Vector2D<f64>, gamma: f64) -> MVector<MVector<f64>>{
         let vx_squared = velocity.x * velocity.x;
         let vy_squared = velocity.y * velocity.y;
         let v_length_squared = vx_squared + vy_squared;
