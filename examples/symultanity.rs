@@ -56,7 +56,6 @@ fn main() {
 
     // Allow both pulses to reach their mirrors, with a small time margin.
     world.process_time(3.0);
-    world.process_time(0.1);
 
     let left_event = world
         .event(&left_detection_event.borrow())
