@@ -18,11 +18,11 @@ mod collision;
 mod m_event;
 mod observation;
 
-pub use collision::{Collision, CollisionGroup, CollisionGroupId, CollisionGroupPair};
+pub use collision::{Collision, CollisionGroup, CollisionGroupId, CollisionGroupPair, CollisionObject};
 pub use config::{ConfigError, MotionMode, ObjectConfig, StartPosition, WorldConfig};
 pub use m_event::{DetectionObject, EventDetection};
 pub use m_object::ObjectState;
 pub use m_vector::{Causality, MVector};
-pub use m_world::{EventDetectionCallback, MWorld, ProcessTimeCallback};
+pub use m_world::{CollisionCallback, EventDetectionCallback, MWorld, ProcessTimeCallback};
 pub use observation::{EventObservation, ObjectObservation, VisibleObjectObservation};
 pub use vector2d::Vector2D;
