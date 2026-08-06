@@ -23,6 +23,6 @@ pub use config::{ConfigError, MotionMode, ObjectConfig, StartPosition, WorldConf
 pub use m_event::{DetectionObject, EventDetection};
 pub use m_object::ObjectState;
 pub use m_vector::{Causality, MVector};
-pub use m_world::{CollisionCallback, EventDetectionCallback, MWorld, ProcessTimeCallback};
+pub use m_world::{MWorld, ProcessTimeCallback};
 pub use observation::{EventObservation, ObjectObservation, VisibleObjectObservation};
 pub use vector2d::Vector2D;

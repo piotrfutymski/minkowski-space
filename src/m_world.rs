@@ -4,7 +4,7 @@ use std::sync::Arc;
 use rayon::iter::IntoParallelRefIterator;
 use vector2d::Vector2D;
 use crate::collision::{
-    Collision, CollisionCalculator, CollisionGroup, CollisionObject, CollisionSnapshot,
+    Collision, CollisionGroup, CollisionObject,
 };
 use crate::config::{ConfigError, MotionMode, ObjectConfig, StartPosition, WorldConfig};
 use crate::m_event::{DetectionObject, EventDetection, MEvent};
@@ -12,38 +12,6 @@ use crate::m_object::{MObject, ObjectState};
 use crate::m_vector::MVector;
 use crate::object_tracker::{ObjectTracker, ReceiverData};
 use crate::observation::{EventObservation, ObjectObservation, VisibleObjectObservation};
-
-/// Type alias for the `on_detection` callback.
-pub type EventDetectionCallback = Box<dyn FnMut(&mut MWorld, &EventDetection)>;
-
-/// Type alias for persistent collision callbacks.
-pub type CollisionCallback = Box<dyn FnMut(&mut MWorld, &Collision)>;
-
-enum CollisionCallbackFilter {
-    Global,
-    Group(CollisionGroup),
-    Pair(CollisionGroup, CollisionGroup),
-}
-
-struct CollisionCallbackRegistration {
-    filter: CollisionCallbackFilter,
-    callback: CollisionCallback,
-}
-
-impl CollisionCallbackFilter {
-    fn matches(&self, group_a: CollisionGroup, group_b: CollisionGroup) -> bool {
-        match self {
-            Self::Global => true,
-            Self::Group(group) => *group == CollisionGroup::All
-                || *group == group_a
-                || *group == group_b,
-            Self::Pair(left, right) => {
-                (*left == CollisionGroup::All || *left == group_a || *left == group_b)
-                    && (*right == CollisionGroup::All || *right == group_a || *right == group_b)
-            }
-        }
-    }
-}
 
 pub struct MWorld {
 
@@ -54,17 +22,10 @@ pub struct MWorld {
     registered_objects: HashMap<usize, (MObject, ObjectTracker)>,
     
     events: HashMap<usize, MEvent>,
-    /// Optional callbacks registered per event.
-    event_callbacks: HashMap<usize, EventDetectionCallback>,
 
     object_event_possible_to_detect: HashMap<usize, HashSet<usize>>,
 
     frame_event_possible_to_detect: HashSet<usize>,
-
-    active_collision_pairs: HashSet<(CollisionObject, CollisionObject)>,
-    collision_callbacks: HashMap<usize, CollisionCallbackRegistration>,
-    cancelled_collision_callbacks: HashSet<usize>,
-    next_collision_callback_id: usize,
 
     counter: usize
 }
@@ -96,13 +57,8 @@ impl MWorld {
             config,
             registered_objects: Default::default(),
             events: Default::default(),
-            event_callbacks: Default::default(),
             object_event_possible_to_detect: Default::default(),
             frame_event_possible_to_detect: Default::default(),
-            active_collision_pairs: Default::default(),
-            collision_callbacks: Default::default(),
-            cancelled_collision_callbacks: Default::default(),
-            next_collision_callback_id: 0,
             counter: 0,
         })
     }
@@ -139,80 +95,24 @@ impl MWorld {
     
     /// Create a spacetime event without an `on_detection` callback.
     pub fn create_event(&mut self, event_position: Vector2D<f64>) -> usize {
-        self.create_event_impl(event_position, None)
+        let event = MVector::new(self.frame_object.position().time, event_position);
+        self.create_event_at_impl(event)
     }
 
-    /// Create a spacetime event with an `on_detection` callback.
-    ///
-    /// The callback will be invoked each time an object in the world detects
-    /// the event. It receives a mutable reference
-    /// to the [`MWorld`] (so you can spawn objects, change velocities, etc.)
-    /// and an [`EventDetection`] describing the detection.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use vector2d::Vector2D;
-    /// use minkowski_space::DetectionObject;
-    ///
-    /// let mut world = minkowski_space::MWorld::new();
-    /// world.create_event_with_callback(
-    ///     Vector2D::new(0.0, 0.0),
-    ///     |world, detection| {
-    ///         match detection.detection_object {
-    ///             DetectionObject::MObject(id) => println!("Event {} detected by object {}", detection.event_id, id),
-    ///             DetectionObject::FrameObject => println!("Event {} detected by frame object", detection.event_id),
-    ///         }
-    ///     },
-    /// );
-    /// ```
-    pub fn create_event_with_callback(
-        &mut self,
-        event_position: Vector2D<f64>,
-        callback: impl FnMut(&mut MWorld, &EventDetection) + 'static,
-    ) -> usize {
-        self.create_event_impl(event_position, Some(Box::new(callback)))
-    }
 
     /// Create a spacetime event at the given `MVector` position (time + space)
     /// without an `on_detection` callback.
     pub fn create_event_at(&mut self, event: MVector<f64>) -> usize {
-        self.create_event_at_impl(event, None)
-    }
-
-    /// Create a spacetime event at the given `MVector` position (time + space)
-    /// with an `on_detection` callback.
-    ///
-    /// See [`create_event_with_callback`](Self::create_event_with_callback) for details about the callback.
-    pub fn create_event_with_callback_at(
-        &mut self,
-        event: MVector<f64>,
-        callback: impl FnMut(&mut MWorld, &EventDetection) + 'static,
-    ) -> usize {
-        self.create_event_at_impl(event, Some(Box::new(callback)))
-    }
-
-    fn create_event_impl(
-        &mut self,
-        event_position: Vector2D<f64>,
-        callback: Option<EventDetectionCallback>,
-    ) -> usize {
-        let event = MVector::new(self.frame_object.position().time, event_position);
-        self.create_event_at_impl(event, callback)
+        self.create_event_at_impl(event)
     }
 
     fn create_event_at_impl(
         &mut self,
-        event: MVector<f64>,
-        callback: Option<EventDetectionCallback>,
+        event: MVector<f64>
     ) -> usize {
         let id = self.counter;
         self.counter += 1;
         let m_event = MEvent::new(event, CollisionGroup::All);
-
-        if let Some(callback) = callback {
-            self.event_callbacks.insert(id, callback);
-        }
 
         if self.frame_object.collision_group().collision_group_matches(
             m_event.collision_group(),
@@ -248,53 +148,8 @@ impl MWorld {
         self.object_event_possible_to_detect.remove(id);
     }
 
-    pub fn register_collision_callback(
-        &mut self,
-        callback: impl FnMut(&mut MWorld, &Collision) + 'static,
-    ) -> usize {
-        self.register_collision_callback_impl(CollisionCallbackFilter::Global, Box::new(callback))
-    }
-
-    pub fn register_collision_group_callback(
-        &mut self,
-        group: CollisionGroup,
-        callback: impl FnMut(&mut MWorld, &Collision) + 'static,
-    ) -> usize {
-        self.register_collision_callback_impl(CollisionCallbackFilter::Group(group), Box::new(callback))
-    }
-
-    pub fn register_collision_pair_callback(
-        &mut self,
-        group_a: CollisionGroup,
-        group_b: CollisionGroup,
-        callback: impl FnMut(&mut MWorld, &Collision) + 'static,
-    ) -> usize {
-        self.register_collision_callback_impl(
-            CollisionCallbackFilter::Pair(group_a, group_b),
-            Box::new(callback),
-        )
-    }
-
-    pub fn unregister_collision_callback(&mut self, id: &usize) {
-        if self.collision_callbacks.remove(id).is_none() {
-            self.cancelled_collision_callbacks.insert(*id);
-        }
-    }
-
-    fn register_collision_callback_impl(
-        &mut self,
-        filter: CollisionCallbackFilter,
-        callback: CollisionCallback,
-    ) -> usize {
-        let id = self.next_collision_callback_id;
-        self.next_collision_callback_id += 1;
-        self.collision_callbacks.insert(id, CollisionCallbackRegistration { filter, callback });
-        id
-    }
-
     pub fn unregister_event(&mut self, id: &usize) {
         self.events.remove(id);
-        self.event_callbacks.remove(id);
         self.object_event_possible_to_detect
             .iter_mut()
             .for_each(|s|{ s.1.remove(id); });
@@ -387,7 +242,6 @@ impl MWorld {
     }
 
     pub fn advance_by_proper_time(&mut self, delta: f64) -> Vec<ProcessTimeCallback> {
-        let mut collision_snapshots = self.collision_snapshots();
         let frame_events_to_check = self.get_frame_events_to_check();
         let frame_detections = self.frame_object.process_as_frame_object_tau(delta, frame_events_to_check);
         let target_time = self.frame_object.position().time;
@@ -412,19 +266,6 @@ impl MWorld {
             })
             .collect();
 
-        collision_snapshots.retain_mut(|snapshot| {
-            let current = match snapshot.participant {
-                CollisionObject::Frame => Some(&self.frame_object),
-                CollisionObject::Object(id) => self.registered_objects.get(&id).map(|entry| &entry.0),
-            };
-            let Some(object) = current else {
-                return false;
-            };
-            snapshot.new_position = *object.position();
-            snapshot.new_velocity = *object.get_velocity();
-            true
-        });
-
         let mut callbacks = Vec::new();
         for (event_id, event_detection_position) in frame_detections {
             self.frame_event_possible_to_detect.remove(&event_id);
@@ -443,89 +284,11 @@ impl MWorld {
             }
         }
 
-        let collisions = CollisionCalculator.calculate_collisions(
-            &collision_snapshots,
-            self.config.spatial_hash_cell_size,
-            self.config.collision_detection_tolerance,
-            &self.config.collision_pairs,
-            &self.active_collision_pairs.iter().copied().collect(),
-        );
-        callbacks.extend(collisions.iter().cloned().map(ProcessTimeCallback::Collision));
-
-        let calculator = CollisionCalculator;
-        let removed_pairs = calculator.active_pairs_to_remove(
-            &self.active_collision_pairs.iter().copied().collect(),
-            &collision_snapshots,
-            self.config.collision_separation_tolerance,
-        );
-        for pair in removed_pairs {
-            self.active_collision_pairs.remove(&pair);
-        }
-        for collision in &collisions {
-            self.active_collision_pairs.insert((collision.object_a, collision.object_b));
-        }
-
-        let groups: HashMap<CollisionObject, CollisionGroup> = collision_snapshots
-            .iter()
-            .map(|snapshot| (snapshot.participant, snapshot.collision_group))
-            .collect();
-        for collision in &collisions {
-            let Some(&group_a) = groups.get(&collision.object_a) else { continue; };
-            let Some(&group_b) = groups.get(&collision.object_b) else { continue; };
-            let mut callback_ids: Vec<usize> = self.collision_callbacks
-                .iter()
-                .filter(|(_, registration)| registration.filter.matches(group_a, group_b))
-                .map(|(id, _)| *id)
-                .collect();
-            callback_ids.sort_unstable();
-            for id in callback_ids {
-                let Some(mut registration) = self.collision_callbacks.remove(&id) else {
-                    continue;
-                };
-                (registration.callback)(self, collision);
-                if !self.cancelled_collision_callbacks.remove(&id) {
-                    self.collision_callbacks.insert(id, registration);
-                }
-            }
-        }
-
-        let removed_after_callbacks = calculator.active_pairs_to_remove(
-            &self.active_collision_pairs.iter().copied().collect(),
-            &self.collision_snapshots(),
-            self.config.collision_separation_tolerance,
-        );
-        for pair in removed_after_callbacks {
-            self.active_collision_pairs.remove(&pair);
-        }
         callbacks
     }
 }
 
 impl MWorld {
-    fn collision_snapshots(&self) -> Vec<CollisionSnapshot> {
-        let mut snapshots = Vec::with_capacity(self.registered_objects.len() + 1);
-        snapshots.push(CollisionSnapshot {
-            participant: CollisionObject::Frame,
-            old_position: *self.frame_object.position(),
-            new_position: *self.frame_object.position(),
-            old_velocity: *self.frame_object.get_velocity(),
-            new_velocity: *self.frame_object.get_velocity(),
-            radius: self.frame_object.get_radius(),
-            collision_group: *self.frame_object.collision_group(),
-        });
-        snapshots.extend(self.registered_objects.iter().map(|(id, (object, _))| {
-            CollisionSnapshot {
-                participant: CollisionObject::Object(*id),
-                old_position: *object.position(),
-                new_position: *object.position(),
-                old_velocity: *object.get_velocity(),
-                new_velocity: *object.get_velocity(),
-                radius: object.get_radius(),
-                collision_group: *object.collision_group(),
-            }
-        }));
-        snapshots
-    }
 
     fn get_frame_events_to_check(&self) -> HashMap<usize, MVector<f64>> {
         self.frame_event_possible_to_detect.iter()
@@ -544,12 +307,6 @@ impl MWorld {
             detection_object: DetectionObject::FrameObject,
             event_detection_position,
         };
-        if let Some(mut callback) = self.event_callbacks.remove(&event_id) {
-            callback(self, &detection);
-            if self.events.contains_key(&event_id) {
-                self.event_callbacks.insert(event_id, callback);
-            }
-        }
         Some(ProcessTimeCallback::Event(detection))
     }
 
@@ -568,18 +325,11 @@ impl MWorld {
         if !self.events.contains_key(&event_id) {
             return None;
         }
-
         let detection = EventDetection {
             event_id,
             detection_object: DetectionObject::MObject(object_id),
             event_detection_position,
         };
-        if let Some(mut callback) = self.event_callbacks.remove(&event_id) {
-            callback(self, &detection);
-            if self.events.contains_key(&event_id) {
-                self.event_callbacks.insert(event_id, callback);
-            }
-        }
         Some(ProcessTimeCallback::Event(detection))
     }
 
