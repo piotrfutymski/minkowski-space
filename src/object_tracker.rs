@@ -2,8 +2,8 @@ use std::collections::{HashMap, VecDeque};
 use vector2d::Vector2D;
 use crate::m_vector::MVector;
 use crate::m_object::MObject;
+use crate::observation::VisibleObjectObservation;
 use crate::photon::{Photon, PhotonEmittingPosition};
-use crate::UPDATE_RATIO;
 
 #[derive(Clone, Debug, Default)]
 pub struct PhotonCrossing{
@@ -26,6 +26,8 @@ pub struct TrackedSource {
 
     t_between_last_photons: f64,
     v_source: MVector<f64>,
+
+    proper_time_step: f64,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -38,7 +40,7 @@ impl TrackedSource {
         let (constant_velocity_dx, object_radius) = {
             let mut constant_velocity_dx = None;
             if source.constant_velocity() {
-                constant_velocity_dx = Some(source.calculate_between_photons_vector());
+                constant_velocity_dx = Some(*source.between_photons_vector());
             }
             (constant_velocity_dx, source.get_radius())
         };
@@ -50,7 +52,8 @@ impl TrackedSource {
             receiver_v: receiver.velocity,
             t_between_last_photons: 1.0,
             v_source: Default::default(),
-            relative_freq: None
+            relative_freq: None,
+            proper_time_step: source.get_proper_time_step(),
         };
         let first_crossing = res.calculate_photon_crossing(&first_photon);
         res.last_photons.push_back(first_crossing);
@@ -63,7 +66,7 @@ impl TrackedSource {
             let oldest = self.last_photons.front().expect("Checked in if");
             self.t_between_last_photons = oldest.time_from_catch - newest.time_from_catch;
             self.v_source = (newest.photon_emmit_pos - oldest.photon_emmit_pos) / self.t_between_last_photons;
-            self.relative_freq = Some(UPDATE_RATIO * (self.last_photons.len() - 1) as f64 / self.t_between_last_photons);
+            self.relative_freq = Some(self.proper_time_step * (self.last_photons.len() - 1) as f64 / self.t_between_last_photons);
         }
     }
 
@@ -163,6 +166,16 @@ impl ObjectTracker {
 
     pub fn get_object_was_seen(&self) -> bool {
         self.object_was_seen
+    }
+
+    pub fn to_visible_observation(&self) -> VisibleObjectObservation {
+        VisibleObjectObservation {
+            relative_position: self.relative_visible_position,
+            basis_x: self.basis_x,
+            basis_y: self.basis_y,
+            relative_frequency: self.relative_frequency,
+            visible_position: self.visible_m_vector,
+        }
     }
 }
 
