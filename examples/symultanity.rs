@@ -34,17 +34,15 @@ fn main() {
     // The mirrors are `MIRROR_DISTANCE` from the origin in the laboratory frame,
     // so their proper separation is γ · 2 · MIRROR_DISTANCE.
     let left_mirror = world
-        .try_register_object(ObjectConfig::at_position_with_const_speed(
+        .register_object(ObjectConfig::at_position_with_const_speed(
             Vector2D::new(-MIRROR_DISTANCE, 0.0),
             vehicle_velocity,
-        ))
-        .expect("left mirror config should be valid");
+        ));
     let right_mirror = world
-        .try_register_object(ObjectConfig::at_position_with_const_speed(
+        .register_object(ObjectConfig::at_position_with_const_speed(
             Vector2D::new(MIRROR_DISTANCE, 0.0),
             vehicle_velocity,
-        ))
-        .expect("right mirror config should be valid");
+        ));
 
     println!("v = {VEHICLE_SPEED}, γ = {gamma:.6}");
     println!(
