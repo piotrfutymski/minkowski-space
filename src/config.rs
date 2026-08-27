@@ -126,20 +126,6 @@ impl Default for ObjectConfig {
     }
 }
 
-/* legacy inherent constructor retained for source compatibility */
-impl ObjectConfig {
-    pub fn default_legacy() -> ObjectConfig {
-        ObjectConfig{
-            position: StartPosition::Position(Default::default()),
-            velocity: Default::default(),
-            radius: 0.0,
-            motion_mode: MotionMode::Dynamic,
-            collision_group: CollisionGroup::Empty,
-        }
-    }
-
-}
-
 /// Configuration of a simulation world.
 #[derive(Clone, Debug)]
 pub struct WorldConfig {

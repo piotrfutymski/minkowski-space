@@ -15,6 +15,7 @@ pub struct ObjectState {
     pub acceleration: Vector2D<f64>,
     pub radius: f64,
     pub motion_mode: MotionMode,
+    pub gamma: f64
 }
 pub struct MObject{
 
@@ -266,6 +267,7 @@ impl MObject{
             acceleration: self.acceleration,
             radius: self.radius,
             motion_mode: self.motion_mode,
+            gamma: self.gamma(),
         }
     }
 }
