@@ -163,10 +163,17 @@ impl MWorld {
     }
 
     pub fn object(&self, id: &usize) -> Option<ObjectState> {
+        if *id == 0{
+            return Some(self.frame_object())
+        }
         self
             .registered_objects
             .get(&id)
             .map(|e|e.0.state())
+    }
+
+    pub fn frame_object(&self) -> ObjectState {
+        self.frame_object.state()
     }
 
     pub fn event(&self, id: &usize) -> Option<MVector<f64>> {
@@ -214,18 +221,26 @@ impl MWorld {
     }
     
     pub fn set_velocity(&mut self, id: &usize, velocity: Vector2D<f64>) -> Result<(), crate::config::ConfigError>{
+        if *id == 0{
+            self.set_frame_velocity(velocity);
+            return Ok(())
+        }
         if !velocity.x.is_finite() || !velocity.y.is_finite() || velocity.length_squared() >= crate::MAX_SAFE_SPEED_SQUARED {
-            return Err(crate::config::ConfigError::SuperluminalVelocity);
+            return Err(ConfigError::SuperluminalVelocity);
         }
         if let Some(object) = self.registered_objects.get_mut(id){
-            if object.0.constant_velocity() { return Err(crate::config::ConfigError::UnsupportedOperation("set_velocity on constant-velocity object")); }
+            if object.0.constant_velocity() { return Err(ConfigError::UnsupportedOperation("set_velocity on constant-velocity object")); }
             object.0.set_velocity(velocity);
             return Ok(())
         }
-        Err(crate::config::ConfigError::UnsupportedOperation("unknown object"))
+        Err(ConfigError::UnsupportedOperation("unknown object"))
     }
 
     pub fn set_acceleration(&mut self, id: &usize, acceleration: Vector2D<f64>){
+        if *id == 0{
+            self.set_frame_acceleration(acceleration);
+            return;
+        }
         if let Some(object) = self.registered_objects.get_mut(id){
             object.0.set_acceleration(acceleration);
         }
