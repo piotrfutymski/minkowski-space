@@ -65,7 +65,7 @@ impl MWorld {
             events: Default::default(),
             object_event_possible_to_detect: Default::default(),
             frame_event_possible_to_detect: Default::default(),
-            counter: 0,
+            counter: 1,
         })
     }
 
