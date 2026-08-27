@@ -28,28 +28,21 @@ fn main() {
     let gamma = 1.0 / (1.0 - VEHICLE_SPEED * VEHICLE_SPEED).sqrt();
 
     let mut world = MWorld::new();
-    // Observe the experiment from the vehicle's frame.
     world.set_frame_velocity(vehicle_velocity);
 
     // The mirrors are `MIRROR_DISTANCE` from the origin in the laboratory frame,
     // so their proper separation is γ · 2 · MIRROR_DISTANCE.
-    let left_mirror = world
-        .register_object(ObjectConfig::at_position_with_const_speed(
+    let left_mirror = world.register_object(ObjectConfig::at_position_with_const_speed(
             Vector2D::new(-MIRROR_DISTANCE, 0.0),
             vehicle_velocity,
         ));
-    let right_mirror = world
-        .register_object(ObjectConfig::at_position_with_const_speed(
+    let right_mirror = world.register_object(ObjectConfig::at_position_with_const_speed(
             Vector2D::new(MIRROR_DISTANCE, 0.0),
             vehicle_velocity,
         ));
 
     println!("v = {VEHICLE_SPEED}, γ = {gamma:.6}");
-    println!(
-        "mirror separation: {} (laboratory) / {:.6} (proper)",
-        2.0 * MIRROR_DISTANCE,
-        2.0 * MIRROR_DISTANCE * gamma
-    );
+    println!("mirror separation: {} (laboratory) / {:.6} (proper)", 2.0 * MIRROR_DISTANCE, 2.0 * MIRROR_DISTANCE * gamma);
 
     // Emit light pulses from the vehicle's center.
     world.create_event(Vector2D::new(0.0, 0.0));
@@ -72,23 +65,15 @@ fn main() {
         }
     }
 
-    let left_detection_position =
-        left_detection_position.expect("left pulse should reach the mirror");
-    let right_detection_position =
-        right_detection_position.expect("right pulse should reach the mirror");
+    let left_detection_position = left_detection_position.expect("left pulse should reach the mirror");
+    let right_detection_position = right_detection_position.expect("right pulse should reach the mirror");
 
     // Record the detections as events, so they can be observed from any frame.
     let left_detection_event = world.create_event_at(left_detection_position);
     let right_detection_event = world.create_event_at(right_detection_position);
 
-    let left_lab_time = world
-        .event(&left_detection_event)
-        .expect("left detection event should exist")
-        .time;
-    let right_lab_time = world
-        .event(&right_detection_event)
-        .expect("right detection event should exist")
-        .time;
+    let left_lab_time = world.event(&left_detection_event).unwrap().time;
+    let right_lab_time = world.event(&right_detection_event).unwrap().time;
 
     let expected_left = MIRROR_DISTANCE / (1.0 + VEHICLE_SPEED);
     let expected_right = MIRROR_DISTANCE / (1.0 - VEHICLE_SPEED);
@@ -99,29 +84,14 @@ fn main() {
         expected_right - expected_left
     );
 
-    let left_observation = world
-        .observe_event(&left_detection_event)
-        .expect("left detection event should exist");
-    let right_observation = world
-        .observe_event(&right_detection_event)
-        .expect("right detection event should exist");
+    let left_observation = world.observe_event(&left_detection_event).unwrap();
+    let right_observation = world.observe_event(&right_detection_event).unwrap();
 
-    let EventObservation::Visible(MVector {
-        time: left_vehicle_time,
-        ..
-    }) = left_observation
-    else {
-        panic!("left detection should already be observable from the vehicle's frame");
-    };
-    let EventObservation::Visible(MVector {
-        time: right_vehicle_time,
-        ..
-    }) = right_observation
-    else {
-        panic!("right detection should already be observable from the vehicle's frame");
-    };
+    let EventObservation::Visible(MVector { time: left_vehicle_time, .. }) = left_observation else { panic!() };
+    let EventObservation::Visible(MVector { time: right_vehicle_time, .. }) = right_observation else { panic!() };
 
     let vehicle_delta = right_vehicle_time - left_vehicle_time;
+
     println!(
         "Vehicle frame — detection times: left = {left_vehicle_time:.6}, \
         right = {right_vehicle_time:.6}, Δt = {vehicle_delta:.6} (expected 0, tolerance {TOLERANCE:e})"
