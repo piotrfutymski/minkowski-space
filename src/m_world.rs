@@ -35,6 +35,12 @@ pub enum ProcessTimeCallback{
     Event(EventDetection),
 }
 
+impl Default for MWorld {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MWorld {
 
     pub fn new() -> Self {
