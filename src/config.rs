@@ -158,6 +158,19 @@ pub struct WorldConfig {
 }
 
 impl WorldConfig {
+    pub fn with_collisions(collisions: Vec<(u32, u32)>) -> Self{
+        let mut res = Self::default();
+        collisions.into_iter()
+            .for_each(|(l,r)|{
+                let l = CollisionGroupId(l);
+                let r = CollisionGroupId(r);
+                res.collision_groups.insert(l);
+                res.collision_groups.insert(r);
+                res.collision_pairs.insert(CollisionGroupPair(l,r));
+            });
+        res
+    }
+
     /// Allocates a group identifier owned by this configuration.
     pub fn define_collision_group(&mut self) -> CollisionGroupId {
         let id = CollisionGroupId(

@@ -9,9 +9,10 @@ use crate::object_tracker::{ObjectTracker, ReceiverData};
 use crate::observation::{EventObservation, ObjectObservation, VisibleObjectObservation};
 use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::{IntoParallelRefMutIterator, ParallelBridge, ParallelIterator};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
 use vector2d::Vector2D;
+use crate::CollisionGroupPair;
 
 pub struct MWorld {
     config: WorldConfig,
@@ -273,6 +274,10 @@ impl MWorld {
         self.frame_object.get_tau()
     }
 
+    pub fn lab_time(&self) -> f64 {
+        self.frame_object.position().time
+    }
+
     pub fn frame_position(&self) -> MVector<f64> {
         *self.frame_object.position()
     }
@@ -283,7 +288,7 @@ impl MWorld {
             .frame_object
             .process_as_frame_object_tau(delta, frame_events_to_check);
 
-        let target_time = self.frame_object.position().time;
+        let target_time = self.lab_time();
 
         let receiver_data = Arc::new(ReceiverData {
             m_pos: *self.frame_object.position(),
@@ -359,6 +364,24 @@ impl MWorld {
             }
         }
         res
+    }
+}
+
+impl MWorld {
+    pub(crate) fn get_registered_objects(&self) -> &HashMap<usize, (MObject, ObjectTracker)> {
+        &self.registered_objects
+    }
+
+    pub(crate) fn get_frame_object(&self) -> &MObject {
+        &self.frame_object
+    }
+
+    pub(crate) fn get_hash_grid(&self) -> &HashGrid {
+        &self.hash_grid
+    }
+
+    pub(crate) fn configured_pairs(&self) -> &BTreeSet<CollisionGroupPair> {
+        &self.config.collision_pairs
     }
 }
 

@@ -20,6 +20,12 @@ pub enum CollisionGroup {
     All,
 }
 
+impl From<u32> for CollisionGroup{
+    fn from(value: u32) -> Self {
+        Self::CollisionGroup(CollisionGroupId(value))
+    }
+}
+
 /// A participant in collision detection.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum CollisionObject {
@@ -69,8 +75,4 @@ pub struct Collision {
     pub object_b: CollisionObject,
     /// Coordinate time in the world's base frame.
     pub time: f64,
-    /// Position of lower object when collision happen
-    pub contact_point_object_a: Vector2D<f64>,
-    /// Position of higher object when collision happen
-    pub contact_point_object_b: Vector2D<f64>,
 }

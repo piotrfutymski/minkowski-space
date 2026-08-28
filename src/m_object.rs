@@ -1,4 +1,4 @@
-use crate::MAX_SAFE_SPEED;
+use crate::{EPSILON, MAX_SAFE_SPEED};
 use crate::collision::{CollisionGroup, CollisionGroupId};
 use crate::config::{MotionMode, ObjectConfig, StartPosition};
 use crate::m_vector::MVector;
@@ -270,7 +270,7 @@ impl MObject {
 
     pub(crate) fn emmit_all_photons(&mut self) -> Vec<Photon> {
         let mut res = vec![Photon::new(self.m_pos, PhotonEmittingPosition::CENTER)];
-        if self.radius > 0.0 {
+        if self.radius > EPSILON {
             res.reserve(4);
             res.push(Photon::new(
                 self.m_pos + self.front_offset,
@@ -307,6 +307,18 @@ impl MObject {
             gamma: self.gamma(),
         }
     }
+
+    pub(crate) fn get_detection_lines(&self) -> Vec<(MVector<f64>, MVector<f64>, f64)>{
+        let mut res = vec![(self.last_m_pos, self.m_pos, 0.0)];
+        if self.radius > EPSILON {
+            res.reserve(4);
+            res.push((self.last_m_pos + self.front_offset, self.m_pos + self.front_offset, self.front_offset.time));
+            res.push((self.last_m_pos + self.back_offset, self.m_pos + self.back_offset, self.back_offset.time));
+            res.push((self.last_m_pos + self.bottom_offset, self.m_pos + self.bottom_offset, self.bottom_offset.time));
+            res.push((self.last_m_pos + self.top_offset, self.m_pos + self.top_offset, self.top_offset.time));
+        }
+        res
+    }
 }
 
 impl MObject {
@@ -322,7 +334,7 @@ impl MObject {
         self.constant_between_photons_vector = self.calculate_between_photons_vector();
     }
     fn update_offsets(&mut self) {
-        if self.radius > 0.0 {
+        if self.radius > EPSILON {
             let gamma = self.gamma();
             let gamma_v = self.gamma() * self.velocity.length();
             let v_direction = match self.velocity.length_squared() {
