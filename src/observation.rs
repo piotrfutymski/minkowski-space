@@ -1,5 +1,5 @@
-use vector2d::Vector2D;
 use crate::m_vector::MVector;
+use vector2d::Vector2D;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct VisibleObjectObservation {
@@ -11,9 +11,9 @@ pub struct VisibleObjectObservation {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub enum ObjectObservation{
+pub enum ObjectObservation {
     Visible(VisibleObjectObservation),
-    NotVisible
+    NotVisible,
 }
 
 /// Observation of a spacetime event by the world's observer.

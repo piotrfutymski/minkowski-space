@@ -1,7 +1,7 @@
-use vector2d::Vector2D;
 use crate::collision::CollisionGroup;
 use crate::m_object::MObject;
 use crate::m_vector::MVector;
+use vector2d::Vector2D;
 
 /// Information about a detected event, passed to the [`on_detection`] callback.
 ///
@@ -16,7 +16,7 @@ pub struct EventDetection {
 #[derive(Debug, Copy, Clone)]
 pub enum DetectionObject {
     MObject(usize),
-    FrameObject
+    FrameObject,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -26,7 +26,7 @@ pub struct EventToCheck {
 }
 
 #[derive(Debug, Clone)]
-pub struct MEvent{
+pub struct MEvent {
     event_pos: MVector<f64>,
     collision_group: CollisionGroup,
 }
@@ -41,8 +41,9 @@ impl MEvent {
     }
 
     pub(crate) fn new(event_pos: MVector<f64>, collision_group: CollisionGroup) -> Self {
-        Self{
-            event_pos, collision_group
+        Self {
+            event_pos,
+            collision_group,
         }
     }
 }

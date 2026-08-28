@@ -10,10 +10,10 @@
 //! so the laboratory time difference is `1.875`, while the vehicle's frame sees
 //! both detections at the same time.
 
-use vector2d::Vector2D;
 use minkowski_space::{
     DetectionObject, EventObservation, MVector, MWorld, ObjectConfig, ProcessTimeCallback,
 };
+use vector2d::Vector2D;
 
 /// Speed of the vehicle in units of `c`.
 const VEHICLE_SPEED: f64 = 0.6;
@@ -33,16 +33,20 @@ fn main() {
     // The mirrors are `MIRROR_DISTANCE` from the origin in the laboratory frame,
     // so their proper separation is γ · 2 · MIRROR_DISTANCE.
     let left_mirror = world.register_object(ObjectConfig::at_position_with_const_speed(
-            Vector2D::new(-MIRROR_DISTANCE, 0.0),
-            vehicle_velocity,
-        ));
+        Vector2D::new(-MIRROR_DISTANCE, 0.0),
+        vehicle_velocity,
+    ));
     let right_mirror = world.register_object(ObjectConfig::at_position_with_const_speed(
-            Vector2D::new(MIRROR_DISTANCE, 0.0),
-            vehicle_velocity,
-        ));
+        Vector2D::new(MIRROR_DISTANCE, 0.0),
+        vehicle_velocity,
+    ));
 
     println!("v = {VEHICLE_SPEED}, γ = {gamma:.6}");
-    println!("mirror separation: {} (laboratory) / {:.6} (proper)", 2.0 * MIRROR_DISTANCE, 2.0 * MIRROR_DISTANCE * gamma);
+    println!(
+        "mirror separation: {} (laboratory) / {:.6} (proper)",
+        2.0 * MIRROR_DISTANCE,
+        2.0 * MIRROR_DISTANCE * gamma
+    );
 
     // Emit light pulses from the vehicle's center.
     world.create_event(Vector2D::new(0.0, 0.0));
@@ -65,8 +69,10 @@ fn main() {
         }
     }
 
-    let left_detection_position = left_detection_position.expect("left pulse should reach the mirror");
-    let right_detection_position = right_detection_position.expect("right pulse should reach the mirror");
+    let left_detection_position =
+        left_detection_position.expect("left pulse should reach the mirror");
+    let right_detection_position =
+        right_detection_position.expect("right pulse should reach the mirror");
 
     // Record the detections as events, so they can be observed from any frame.
     let left_detection_event = world.create_event_at(left_detection_position);
@@ -87,8 +93,20 @@ fn main() {
     let left_observation = world.observe_event(&left_detection_event).unwrap();
     let right_observation = world.observe_event(&right_detection_event).unwrap();
 
-    let EventObservation::Visible(MVector { time: left_vehicle_time, .. }) = left_observation else { panic!() };
-    let EventObservation::Visible(MVector { time: right_vehicle_time, .. }) = right_observation else { panic!() };
+    let EventObservation::Visible(MVector {
+        time: left_vehicle_time,
+        ..
+    }) = left_observation
+    else {
+        panic!()
+    };
+    let EventObservation::Visible(MVector {
+        time: right_vehicle_time,
+        ..
+    }) = right_observation
+    else {
+        panic!()
+    };
 
     let vehicle_delta = right_vehicle_time - left_vehicle_time;
 

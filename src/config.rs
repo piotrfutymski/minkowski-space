@@ -1,7 +1,7 @@
-use std::collections::BTreeSet;
-use crate::m_vector::MVector;
-use vector2d::Vector2D;
 use crate::collision::{CollisionGroup, CollisionGroupId, CollisionGroupPair};
+use crate::m_vector::MVector;
+use std::collections::BTreeSet;
+use vector2d::Vector2D;
 
 /// Errors returned when a physical or world configuration violates the
 /// simulation invariants.
@@ -23,20 +23,26 @@ impl std::fmt::Display for ConfigError {
             Self::NonPositive { field } => write!(f, "{field} must be greater than zero"),
             Self::SuperluminalVelocity => write!(f, "velocity must be subluminal"),
             Self::UnsupportedOperation(op) => write!(f, "unsupported operation: {op}"),
-            Self::InvalidCollisionGroupPair => write!(f, "collision pair references an undefined group"),
+            Self::InvalidCollisionGroupPair => {
+                write!(f, "collision pair references an undefined group")
+            }
         }
     }
 }
 impl std::error::Error for ConfigError {}
 
 fn valid_number(value: f64, field: &'static str) -> Result<(), ConfigError> {
-    if !value.is_finite() { return Err(ConfigError::NonFinite { field }); }
+    if !value.is_finite() {
+        return Err(ConfigError::NonFinite { field });
+    }
     Ok(())
 }
 fn valid_velocity(v: Vector2D<f64>) -> Result<(), ConfigError> {
     valid_number(v.x, "velocity.x")?;
     valid_number(v.y, "velocity.y")?;
-    if v.length_squared() >= crate::MAX_SAFE_SPEED_SQUARED { return Err(ConfigError::SuperluminalVelocity); }
+    if v.length_squared() >= crate::MAX_SAFE_SPEED_SQUARED {
+        return Err(ConfigError::SuperluminalVelocity);
+    }
     Ok(())
 }
 
@@ -66,26 +72,40 @@ pub struct ObjectConfig {
 }
 
 impl ObjectConfig {
-
     /// Validates values also exposed by the public fields.
     pub fn validate(&self) -> Result<(), ConfigError> {
         match self.position {
-            StartPosition::Position(p) => { valid_number(p.time, "position.time")?; valid_number(p.pos.x, "position.x")?; valid_number(p.pos.y, "position.y")?; }
-            StartPosition::PositionNow(p) => { valid_number(p.x, "position.x")?; valid_number(p.y, "position.y")?; }
+            StartPosition::Position(p) => {
+                valid_number(p.time, "position.time")?;
+                valid_number(p.pos.x, "position.x")?;
+                valid_number(p.pos.y, "position.y")?;
+            }
+            StartPosition::PositionNow(p) => {
+                valid_number(p.x, "position.x")?;
+                valid_number(p.y, "position.y")?;
+            }
         }
         valid_velocity(self.velocity)?;
         valid_number(self.radius, "radius")?;
-        if self.radius < 0.0 { return Err(ConfigError::Negative { field: "radius" }); }
+        if self.radius < 0.0 {
+            return Err(ConfigError::Negative { field: "radius" });
+        }
         Ok(())
     }
 
-    pub fn try_at_position_with_const_speed(initial_pos: Vector2D<f64>, initial_velocity: Vector2D<f64>) -> Result<Self, ConfigError> {
+    pub fn try_at_position_with_const_speed(
+        initial_pos: Vector2D<f64>,
+        initial_velocity: Vector2D<f64>,
+    ) -> Result<Self, ConfigError> {
         let config = Self::at_position_with_const_speed(initial_pos, initial_velocity);
         config.validate().map(|_| config)
     }
 
-    pub fn at_position_with_const_speed(initial_pos: Vector2D<f64>, initial_velocity: Vector2D<f64>) -> ObjectConfig {
-        ObjectConfig{
+    pub fn at_position_with_const_speed(
+        initial_pos: Vector2D<f64>,
+        initial_velocity: Vector2D<f64>,
+    ) -> ObjectConfig {
+        ObjectConfig {
             position: StartPosition::PositionNow(initial_pos),
             velocity: initial_velocity,
             radius: 0.0,
@@ -95,7 +115,7 @@ impl ObjectConfig {
     }
 
     pub fn at_position(initial_pos: Vector2D<f64>) -> ObjectConfig {
-        ObjectConfig{
+        ObjectConfig {
             position: StartPosition::PositionNow(initial_pos),
             velocity: Default::default(),
             radius: 0.0,
@@ -104,7 +124,7 @@ impl ObjectConfig {
         }
     }
     pub fn default_with_group(collision_group: CollisionGroup) -> ObjectConfig {
-        ObjectConfig{
+        ObjectConfig {
             position: StartPosition::Position(Default::default()),
             velocity: Default::default(),
             radius: 0.0,
@@ -135,8 +155,6 @@ pub struct WorldConfig {
     pub collision_pairs: BTreeSet<CollisionGroupPair>,
     pub frame_collision_group: CollisionGroup,
     pub frame_collision_radius: f64,
-    pub collision_detection_tolerance: f64,
-    pub collision_separation_tolerance: f64,
 }
 
 impl WorldConfig {
@@ -155,23 +173,25 @@ impl WorldConfig {
 
     pub fn validate(&self) -> Result<(), ConfigError> {
         valid_number(self.proper_time_step, "proper_time_step")?;
-        if self.proper_time_step <= 0.0 { return Err(ConfigError::NonPositive { field: "proper_time_step" }); }
+        if self.proper_time_step <= 0.0 {
+            return Err(ConfigError::NonPositive {
+                field: "proper_time_step",
+            });
+        }
         valid_number(self.spatial_hash_cell_size, "spatial_hash_cell_size")?;
-        if self.spatial_hash_cell_size <= 0.0 { return Err(ConfigError::NonPositive { field: "spatial_hash_cell_size" }); }
+        if self.spatial_hash_cell_size <= 0.0 {
+            return Err(ConfigError::NonPositive {
+                field: "spatial_hash_cell_size",
+            });
+        }
         valid_number(self.frame_collision_radius, "frame_collision_radius")?;
-        if self.frame_collision_radius < 0.0 { return Err(ConfigError::Negative { field: "frame_collision_radius" }); }
-        valid_number(self.collision_detection_tolerance, "collision_detection_tolerance")?;
-        if self.collision_detection_tolerance < 0.0 { return Err(ConfigError::Negative { field: "collision_detection_tolerance" }); }
-        valid_number(self.collision_separation_tolerance, "collision_separation_tolerance")?;
-        if self.collision_separation_tolerance < 0.0 { return Err(ConfigError::Negative { field: "collision_separation_tolerance" }); }
-        if self.collision_separation_tolerance < self.collision_detection_tolerance {
-            return Err(ConfigError::UnsupportedOperation(
-                "collision_separation_tolerance must be at least collision_detection_tolerance",
-            ));
+        if self.frame_collision_radius < 0.0 {
+            return Err(ConfigError::Negative {
+                field: "frame_collision_radius",
+            });
         }
         if self.collision_pairs.iter().any(|pair| {
-            !self.collision_groups.contains(&pair.0)
-                || !self.collision_groups.contains(&pair.1)
+            !self.collision_groups.contains(&pair.0) || !self.collision_groups.contains(&pair.1)
         }) {
             return Err(ConfigError::InvalidCollisionGroupPair);
         }
@@ -188,8 +208,6 @@ impl Default for WorldConfig {
             collision_pairs: BTreeSet::new(),
             frame_collision_group: CollisionGroup::Empty,
             frame_collision_radius: 0.0,
-            collision_detection_tolerance: 1e-9,
-            collision_separation_tolerance: 1e-8,
         }
     }
 }

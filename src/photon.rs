@@ -1,30 +1,27 @@
 use crate::m_vector::MVector;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub enum PhotonEmittingPosition{
+pub enum PhotonEmittingPosition {
     CENTER,
     BACK,
     FRONT,
     TOP,
-    BOTTOM
+    BOTTOM,
 }
 
 #[derive(Clone)]
-pub struct Photon{
+pub struct Photon {
     m_pos: MVector<f64>,
-    photon_pos: PhotonEmittingPosition
+    photon_pos: PhotonEmittingPosition,
 }
 
-impl Photon{
+impl Photon {
     pub fn new(m_pos: MVector<f64>, photon_pos: PhotonEmittingPosition) -> Self {
-        Self{
-            m_pos,
-            photon_pos,
-        }
+        Self { m_pos, photon_pos }
     }
 }
 
-impl Photon{
+impl Photon {
     pub fn get_emmit_type(&self) -> PhotonEmittingPosition {
         self.photon_pos
     }

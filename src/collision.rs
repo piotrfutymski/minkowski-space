@@ -1,3 +1,6 @@
+pub(crate) mod collision_calculator;
+pub(crate) mod hashgrid;
+
 use crate::m_vector::MVector;
 use std::collections::{BTreeMap, BTreeSet};
 use vector2d::Vector2D;
@@ -14,7 +17,7 @@ pub struct CollisionGroupId(pub(crate) u32);
 pub enum CollisionGroup {
     Empty,
     CollisionGroup(CollisionGroupId),
-    All
+    All,
 }
 
 /// A participant in collision detection.
