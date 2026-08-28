@@ -12,7 +12,7 @@ fn test_collision() {
     let v: f64 = 0.9;
     let collision_time = (distance - 2.0 * radius * (1.0 - v.powi(2)).sqrt()) / (2.0 * v);
 
-    let left = m_world.register_object(ObjectConfig {
+    let _left = m_world.register_object(ObjectConfig {
         position: StartPosition::Position(MVector::new(0.0, Vector2D::new(-distance/2.0, 0.3))),
         velocity: Vector2D::new(v, 0.0),
         radius,
@@ -20,7 +20,7 @@ fn test_collision() {
         collision_group: 0.into(),
     });
 
-    let right = m_world.register_object(ObjectConfig {
+    let _right = m_world.register_object(ObjectConfig {
         position: StartPosition::Position(MVector::new(0.0, Vector2D::new(distance/2.0, 0.3))),
         velocity: Vector2D::new(-v, 0.0),
         radius,

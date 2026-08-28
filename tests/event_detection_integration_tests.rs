@@ -1,4 +1,3 @@
-use std::sync::{Arc, Mutex};
 
 use minkowski_space::{
     CollisionGroup, DetectionObject, EventObservation, MVector, MWorld, MotionMode, ObjectConfig,

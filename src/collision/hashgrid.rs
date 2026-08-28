@@ -38,7 +38,9 @@ impl HashGrid {
     pub(crate) fn get_candidates(&self, object: &MObject) -> Vec<usize>{
         self.neighbour_cells(object.position())
             .iter()
-            .flat_map(|e|self.object_grid.get(e).iter().flat_map(|e|e.iter().copied()).collect::<Vec<_>>())
+            .filter_map(|e| self.object_grid.get(e))
+            .flatten()
+            .copied()
             .collect()
     }
 
@@ -49,9 +51,9 @@ impl HashGrid {
         HashCell { idx_x, idx_y }
     }
 
-    pub(crate) fn neighbour_cells<T: Into<Vector2D<f64>>>(&self, pos: T) -> Vec<HashCell> {
+    pub(crate) fn neighbour_cells<T: Into<Vector2D<f64>>>(&self, pos: T) -> [HashCell; 9] {
         let cell = self.to_cell(pos);
-        vec![
+        [
             cell,
             cell + Vector2D{ x: 0, y: -1 },
             cell + Vector2D{ x: 0, y: 1 },

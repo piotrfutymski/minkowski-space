@@ -28,7 +28,7 @@ impl CollisionCalculator<'_> {
     fn detect_collisions_for_object_optional(&self, id: usize) -> Option<Vec<ProcessTimeCallback>> {
         let object = self.get_object_from_id(id)?;
         let collision_candidates = self.detect_collision_candidates(id, object);
-        let mut res = vec![];
+        let mut res = Vec::with_capacity(collision_candidates.len());
         for collision_candidate in collision_candidates {
             if let Some(collision_delta) =  Self::collision_detected(object, collision_candidate.1){
                 res.push(ProcessTimeCallback::Collision(Collision{
@@ -41,7 +41,7 @@ impl CollisionCalculator<'_> {
         Some(res)
     }
 
-    fn detect_collision_candidates(&self, object_id: usize, object: &MObject) -> HashMap<usize, &MObject> {
+    fn detect_collision_candidates(&self, object_id: usize, object: &MObject) -> Vec<(usize, &MObject)> {
         self.world.get_hash_grid().get_candidates(object)
             .into_iter()
             .filter(|id| *id > object_id)
