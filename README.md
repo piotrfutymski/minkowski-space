@@ -2,9 +2,22 @@
 
 # minkowski-space
 
+[![crates.io](https://img.shields.io/crates/v/minkowski-space.svg)](https://crates.io/crates/minkowski-space)
+[![Documentation](https://docs.rs/minkowski-space/badge.svg)](https://docs.rs/minkowski-space)
+[![Build](https://github.com/piotrfutymski/minkowski-space/actions/workflows/rust.yml/badge.svg)](https://github.com/piotrfutymski/minkowski-space/actions/workflows/rust.yml)
+
 Biblioteka do symulacji fizyki w płaskiej czasoprzestrzeni Minkowskiego. Symulacja odbywa się w **2+1 wymiarach**: dwóch wymiarach przestrzennych oraz jednym wymiarze czasowym.
 
 > **Status:** eksperymentalne API
+
+## Instalacja
+
+Dodaj bibliotekę jako zależność w `Cargo.toml`:
+
+```toml
+[dependencies]
+minkowski-space = "0.1"
+```
 
 ## Opis
 
@@ -106,6 +119,10 @@ gdzie `Δt` oznacza przyrost czasu laboratoryjnego, a `Δτ` – przyrost czasu 
 
 # English version
 
+[![crates.io](https://img.shields.io/crates/v/minkowski-space.svg)](https://crates.io/crates/minkowski-space)
+[![Documentation](https://docs.rs/minkowski-space/badge.svg)](https://docs.rs/minkowski-space)
+[![Build](https://github.com/piotrfutymski/minkowski-space/actions/workflows/rust.yml/badge.svg)](https://github.com/piotrfutymski/minkowski-space/actions/workflows/rust.yml)
+
 ## Description
 
 `minkowski-space` is a library for simulating physics in flat Minkowski spacetime. The simulation uses **2+1 dimensions**: two spatial dimensions and one time dimension.
@@ -136,6 +153,15 @@ The library provides:
 ## Quick start
 
 The Rust quick-start example is shared with the Polish section above.
+
+## Installation
+
+Add the library as a dependency in `Cargo.toml`:
+
+```toml
+[dependencies]
+minkowski-space = "0.1"
+```
 
 ## Basic concepts and terminology
 
