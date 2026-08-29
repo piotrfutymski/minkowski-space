@@ -7,8 +7,9 @@
 //! Analytically, with mirrors at `x = ±1` in the laboratory frame:
 //!   * the left  pulse meets its mirror at `t = 1 / (1 + v) = 0.625`
 //!   * the right pulse meets its mirror at `t = 1 / (1 - v) = 2.5`
-//! so the laboratory time difference is `1.875`, while the vehicle's frame sees
-//! both detections at the same time.
+//!
+//! Therefore, the laboratory time difference is `1.875`, while the vehicle's
+//! frame sees both detections at the same time.
 
 use minkowski_space::{
     DetectionObject, EventObservation, MVector, MWorld, ObjectConfig, ProcessTimeCallback,
@@ -28,7 +29,7 @@ fn main() {
     let gamma = 1.0 / (1.0 - VEHICLE_SPEED * VEHICLE_SPEED).sqrt();
 
     let mut world = MWorld::new();
-    world.set_frame_velocity(vehicle_velocity);
+    world.set_observer_velocity(vehicle_velocity);
 
     // The mirrors are `MIRROR_DISTANCE` from the origin in the laboratory frame,
     // so their proper separation is γ · 2 · MIRROR_DISTANCE.

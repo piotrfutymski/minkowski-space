@@ -2,6 +2,8 @@ pub(crate) mod collision_calculator;
 pub(crate) mod hashgrid;
 
 use crate::m_vector::MVector;
+use crate::m_world::ObjectSelection;
+use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 use vector2d::Vector2D;
 
@@ -13,24 +15,21 @@ use vector2d::Vector2D;
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct CollisionGroupId(pub(crate) u32);
 
+/// Defines how an object participates in collision filtering.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum CollisionGroup {
+    /// The object does not participate in collisions.
     Empty,
+    /// A user-defined collision group.
     CollisionGroup(CollisionGroupId),
+    /// Matches every collision group.
     All,
 }
 
-impl From<u32> for CollisionGroup{
+impl From<u32> for CollisionGroup {
     fn from(value: u32) -> Self {
         Self::CollisionGroup(CollisionGroupId(value))
     }
-}
-
-/// A participant in collision detection.
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub enum CollisionObject {
-    Object(usize),
-    Frame,
 }
 
 impl CollisionGroup {
@@ -49,8 +48,14 @@ impl CollisionGroup {
     }
 }
 
+/// A pair of collision groups that is allowed to interact.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct CollisionGroupPair(pub CollisionGroupId, pub CollisionGroupId);
+pub struct CollisionGroupPair(
+    /// First group in the pair.
+    pub CollisionGroupId,
+    /// Second group in the pair.
+    pub CollisionGroupId,
+);
 
 impl CollisionGroupPair {
     pub(crate) fn canonical(self) -> Self {
@@ -66,13 +71,34 @@ impl CollisionGroupPair {
     }
 }
 
-/// A global fact emitted when two configured objects first touch.
+/// The canonical identity of two objects in contact.
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct CollisionPair(
+    /// First object in the pair.
+    pub ObjectSelection,
+    /// Second object in the pair.
+    pub ObjectSelection,
+);
+
+impl CollisionPair {
+    /// Creates a pair in canonical order, so `(a, b)` equals `(b, a)`.
+    pub fn new(a: ObjectSelection, b: ObjectSelection) -> Self {
+        if a <= b { Self(a, b) } else { Self(b, a) }
+    }
+
+    /// Returns `true` when this pair contains `object`.
+    pub fn contains(&self, object: ObjectSelection) -> bool {
+        self.0 == object || self.1 == object
+    }
+}
+
+/// A collision detected during a simulation step.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Collision {
     /// The first participant in the canonical pair.
-    pub object_a: CollisionObject,
+    pub object_a: ObjectSelection,
     /// The second participant in the canonical pair.
-    pub object_b: CollisionObject,
-    /// Coordinate time in the world's base frame.
-    pub time: f64,
+    pub object_b: ObjectSelection,
+    /// Spacetime position of the contact in laboratory coordinates.
+    pub position: MVector<f64>,
 }

@@ -7,11 +7,17 @@ use vector2d::Vector2D;
 /// simulation invariants.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ConfigError {
+    /// A configuration value is not finite (`NaN`, positive infinity, or negative infinity).
     NonFinite { field: &'static str },
+    /// A configuration value is negative although only non-negative values are valid.
     Negative { field: &'static str },
+    /// A configuration value must be greater than zero.
     NonPositive { field: &'static str },
+    /// A velocity is equal to or greater than the speed of light.
     SuperluminalVelocity,
+    /// The selected operation is not supported by the object or world.
     UnsupportedOperation(&'static str),
+    /// A collision pair refers to a group that is not defined in the configuration.
     InvalidCollisionGroupPair,
 }
 
@@ -55,24 +61,32 @@ pub enum MotionMode {
     Dynamic,
 }
 
+/// The initial position of a registered object.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum StartPosition {
+    /// An explicit spacetime position in laboratory coordinates.
     Position(MVector<f64>),
+    /// A spatial position at the world's current laboratory time.
     PositionNow(Vector2D<f64>),
 }
 
 /// Immutable physical configuration used when spawning an object.
 #[derive(Copy, Clone, Debug)]
 pub struct ObjectConfig {
+    /// Initial position in laboratory coordinates.
     pub position: StartPosition,
+    /// Initial velocity in units where the speed of light is `1`.
     pub velocity: Vector2D<f64>,
+    /// Object radius in spatial units.
     pub radius: f64,
+    /// Integration strategy used by the object.
     pub motion_mode: MotionMode,
+    /// Collision group assigned to the object.
     pub collision_group: CollisionGroup,
 }
 
 impl ObjectConfig {
-    /// Validates values also exposed by the public fields.
+    /// Validates all values exposed by the public fields.
     pub fn validate(&self) -> Result<(), ConfigError> {
         match self.position {
             StartPosition::Position(p) => {
@@ -93,6 +107,9 @@ impl ObjectConfig {
         Ok(())
     }
 
+    /// Creates and validates a constant-velocity object configuration.
+    ///
+    /// Returns an error when the initial velocity or position is invalid.
     pub fn try_at_position_with_const_speed(
         initial_pos: Vector2D<f64>,
         initial_velocity: Vector2D<f64>,
@@ -101,6 +118,10 @@ impl ObjectConfig {
         config.validate().map(|_| config)
     }
 
+    /// Creates a constant-velocity object configuration at a spatial position.
+    ///
+    /// The position is interpreted at the world's current laboratory time.
+    /// Call [`Self::validate`] before using untrusted input.
     pub fn at_position_with_const_speed(
         initial_pos: Vector2D<f64>,
         initial_velocity: Vector2D<f64>,
@@ -114,6 +135,9 @@ impl ObjectConfig {
         }
     }
 
+    /// Creates a dynamic object configuration at a spatial position.
+    ///
+    /// The initial velocity and acceleration are zero.
     pub fn at_position(initial_pos: Vector2D<f64>) -> ObjectConfig {
         ObjectConfig {
             position: StartPosition::PositionNow(initial_pos),
@@ -123,6 +147,9 @@ impl ObjectConfig {
             collision_group: CollisionGroup::Empty,
         }
     }
+    /// Creates a dynamic object configuration at the spacetime origin.
+    ///
+    /// The object is assigned the supplied collision group.
     pub fn default_with_group(collision_group: CollisionGroup) -> ObjectConfig {
         ObjectConfig {
             position: StartPosition::Position(Default::default()),
@@ -149,29 +176,41 @@ impl Default for ObjectConfig {
 /// Configuration of a simulation world.
 #[derive(Clone, Debug)]
 pub struct WorldConfig {
+    /// Observer proper-time step used by dynamic integration.
     pub proper_time_step: f64,
+    /// Spatial size of a cell used by broad-phase collision detection.
     pub spatial_hash_cell_size: f64,
+    /// Collision groups defined for this world.
     pub collision_groups: BTreeSet<CollisionGroupId>,
+    /// Pairs of groups that are allowed to collide.
     pub collision_pairs: BTreeSet<CollisionGroupPair>,
-    pub frame_collision_group: CollisionGroup,
-    pub frame_collision_radius: f64,
+    /// Collision group assigned to the observer.
+    pub observer_collision_group: CollisionGroup,
+    /// Collision radius assigned to the observer.
+    pub observer_collision_radius: f64,
 }
 
 impl WorldConfig {
-    pub fn with_collisions(collisions: Vec<(u32, u32)>) -> Self{
+    /// Creates a default world configuration with the supplied collision pairs.
+    ///
+    /// Each tuple contains the numeric IDs of two collision groups. The groups
+    /// are added to the configuration automatically.
+    pub fn with_collisions(collisions: Vec<(u32, u32)>) -> Self {
         let mut res = Self::default();
-        collisions.into_iter()
-            .for_each(|(l,r)|{
-                let l = CollisionGroupId(l);
-                let r = CollisionGroupId(r);
-                res.collision_groups.insert(l);
-                res.collision_groups.insert(r);
-                res.collision_pairs.insert(CollisionGroupPair(l,r));
-            });
+        collisions.into_iter().for_each(|(l, r)| {
+            let l = CollisionGroupId(l);
+            let r = CollisionGroupId(r);
+            res.collision_groups.insert(l);
+            res.collision_groups.insert(r);
+            res.collision_pairs.insert(CollisionGroupPair(l, r));
+        });
         res
     }
 
     /// Allocates a group identifier owned by this configuration.
+    ///
+    /// The returned ID is inserted into [`Self::collision_groups`] and can be
+    /// used to construct a [`CollisionGroup::CollisionGroup`].
     pub fn define_collision_group(&mut self) -> CollisionGroupId {
         let id = CollisionGroupId(
             self.collision_groups
@@ -184,6 +223,7 @@ impl WorldConfig {
         id
     }
 
+    /// Validates the physical and numerical invariants of this configuration.
     pub fn validate(&self) -> Result<(), ConfigError> {
         valid_number(self.proper_time_step, "proper_time_step")?;
         if self.proper_time_step <= 0.0 {
@@ -197,8 +237,8 @@ impl WorldConfig {
                 field: "spatial_hash_cell_size",
             });
         }
-        valid_number(self.frame_collision_radius, "frame_collision_radius")?;
-        if self.frame_collision_radius < 0.0 {
+        valid_number(self.observer_collision_radius, "frame_collision_radius")?;
+        if self.observer_collision_radius < 0.0 {
             return Err(ConfigError::Negative {
                 field: "frame_collision_radius",
             });
@@ -219,8 +259,8 @@ impl Default for WorldConfig {
             spatial_hash_cell_size: 1.0,
             collision_groups: BTreeSet::new(),
             collision_pairs: BTreeSet::new(),
-            frame_collision_group: CollisionGroup::Empty,
-            frame_collision_radius: 0.0,
+            observer_collision_group: CollisionGroup::Empty,
+            observer_collision_radius: 0.0,
         }
     }
 }

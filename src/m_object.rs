@@ -1,23 +1,40 @@
-use crate::{EPSILON, MAX_SAFE_SPEED};
 use crate::collision::{CollisionGroup, CollisionGroupId};
 use crate::config::{MotionMode, ObjectConfig, StartPosition};
 use crate::m_vector::MVector;
+use crate::m_world::ObjectSelection;
 use crate::photon::{Photon, PhotonEmittingPosition};
+use crate::{EPSILON, MAX_SAFE_SPEED};
 use std::collections::HashMap;
 use std::ops::Mul;
 use vector2d::Vector2D;
 
+/// A snapshot of an object's current physical state.
+///
+/// Positions are expressed in laboratory coordinates. `proper_time` is the
+/// time elapsed along the object's world line, while the world itself advances
+/// according to the observer's proper time.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct ObjectState {
+    /// Current spacetime position in laboratory coordinates.
     pub position: MVector<f64>,
+    /// Proper time elapsed along the object's world line.
     pub proper_time: f64,
+    /// Current velocity in laboratory coordinates and units where `c = 1`.
     pub velocity: Vector2D<f64>,
+    /// Current acceleration used by the dynamic integrator.
     pub acceleration: Vector2D<f64>,
+    /// Spatial radius used for extended-object rendering and collisions.
     pub radius: f64,
+    /// Motion integration mode of the object.
     pub motion_mode: MotionMode,
+    /// Lorentz factor calculated from the current velocity.
     pub gamma: f64,
+    /// ID assigned when the object was registered.
+    pub id: usize,
 }
-pub struct MObject {
+pub(crate) struct MObject {
+    id: usize,
+
     motion_mode: MotionMode,
     radius: f64,
 
@@ -38,12 +55,19 @@ pub struct MObject {
     top_offset: MVector<f64>,
 
     proper_time_step: f64,
+    collision_detection_enabled: bool,
     collision_group: CollisionGroup,
 }
 
 impl MObject {
-    pub(crate) fn new(object_config: ObjectConfig, update_ratio: f64, world_time: f64) -> Self {
+    pub(crate) fn new(
+        object_config: ObjectConfig,
+        update_ratio: f64,
+        world_time: f64,
+        id: usize,
+    ) -> Self {
         let mut res = Self {
+            id,
             motion_mode: object_config.motion_mode,
             radius: object_config.radius,
             tau: 0.0,
@@ -64,6 +88,7 @@ impl MObject {
             bottom_offset: Default::default(),
             top_offset: Default::default(),
             proper_time_step: update_ratio,
+            collision_detection_enabled: true,
             collision_group: object_config.collision_group,
         };
         if object_config.motion_mode == MotionMode::AlwaysConstantVelocity {
@@ -73,7 +98,7 @@ impl MObject {
         res
     }
 
-    pub(crate) fn process_as_frame_object_tau(
+    pub(crate) fn process_as_observer_object_tau(
         &mut self,
         tau: f64,
         events_to_check: HashMap<usize, MVector<f64>>,
@@ -138,10 +163,11 @@ impl MObject {
                 let delta_pos = MVector::new(dt, self.velocity * dt);
                 let events_detections =
                     Self::events_detection_check(&rest_events, &self.m_pos, &delta_pos);
-                rest_events = rest_events
-                    .into_iter()
-                    .filter(|e| !events_detections.contains(e))
-                    .collect();
+                rest_events.retain(|id, _| {
+                    !events_detections
+                        .iter()
+                        .any(|(detected_id, _)| detected_id == id)
+                });
                 all_events_detections.extend(events_detections);
                 self.m_pos = self.m_pos + delta_pos;
                 self.velocity_update(&mut gamma, &mut dt);
@@ -152,6 +178,156 @@ impl MObject {
         }
     }
 
+    pub(crate) fn gamma(&self) -> f64 {
+        if self.motion_mode == MotionMode::AlwaysConstantVelocity {
+            return self.constant_gamma;
+        }
+        1.0 / (1.0 - self.velocity.length_squared()).sqrt()
+    }
+
+    pub(crate) fn one_over_gamma(&self) -> f64 {
+        if self.motion_mode == MotionMode::AlwaysConstantVelocity {
+            return 1.0 / self.constant_gamma;
+        }
+        (1.0 - self.velocity.length_squared()).sqrt()
+    }
+
+    pub(crate) fn calculate_between_photons_vector(&self) -> MVector<f64> {
+        let gamma = self.gamma();
+        let dt = self.proper_time_step * gamma;
+        let dx = self.velocity * dt;
+        MVector::new(dt, dx)
+    }
+
+    pub(crate) fn constant_velocity(&self) -> bool {
+        self.motion_mode == MotionMode::AlwaysConstantVelocity
+    }
+
+    pub(crate) fn between_photons_vector(&self) -> &MVector<f64> {
+        &self.constant_between_photons_vector
+    }
+
+    pub(crate) fn get_radius(&self) -> f64 {
+        self.radius
+    }
+
+    pub(crate) fn get_tau(&self) -> f64 {
+        self.tau
+    }
+
+    pub(crate) fn position(&self) -> &MVector<f64> {
+        &self.m_pos
+    }
+    pub(crate) fn get_last_position(&self) -> &MVector<f64> {
+        &self.last_m_pos
+    }
+
+    pub(crate) fn collision_group(&self) -> &CollisionGroup {
+        &self.collision_group
+    }
+
+    pub(crate) fn get_velocity(&self) -> &Vector2D<f64> {
+        &self.velocity
+    }
+
+    pub(crate) fn get_acceleration(&self) -> &Vector2D<f64> {
+        &self.acceleration
+    }
+
+    pub(crate) fn selection(&self) -> ObjectSelection {
+        self.id.into()
+    }
+
+    pub(crate) fn is_collision_detection_enabled(&self) -> bool {
+        self.collision_detection_enabled
+    }
+
+    pub(crate) fn set_velocity(&mut self, velocity: Vector2D<f64>) {
+        if self.motion_mode == MotionMode::AlwaysConstantVelocity {
+            return;
+        }
+        self.velocity = velocity;
+        self.update_offsets();
+    }
+
+    pub(crate) fn set_acceleration(&mut self, acceleration: Vector2D<f64>) {
+        if self.motion_mode == MotionMode::AlwaysConstantVelocity {
+            return;
+        }
+        self.acceleration = acceleration;
+    }
+
+    pub(crate) fn set_collision_enabled(&mut self, collision_enabled: bool) {
+        self.collision_detection_enabled = collision_enabled;
+    }
+
+    pub(crate) fn emmit_all_photons(&mut self) -> Vec<Photon> {
+        let mut res = vec![Photon::new(self.m_pos, PhotonEmittingPosition::Center)];
+        if self.radius > EPSILON {
+            res.reserve(4);
+            res.push(Photon::new(
+                self.m_pos + self.front_offset,
+                PhotonEmittingPosition::Front,
+            ));
+            res.push(Photon::new(
+                self.m_pos + self.back_offset,
+                PhotonEmittingPosition::Back,
+            ));
+            res.push(Photon::new(
+                self.m_pos + self.bottom_offset,
+                PhotonEmittingPosition::Bottom,
+            ));
+            res.push(Photon::new(
+                self.m_pos + self.top_offset,
+                PhotonEmittingPosition::Top,
+            ));
+        }
+        res
+    }
+
+    pub(crate) fn get_proper_time_step(&self) -> f64 {
+        self.proper_time_step
+    }
+
+    pub(crate) fn state(self: &MObject) -> ObjectState {
+        ObjectState {
+            position: self.m_pos,
+            proper_time: self.tau,
+            velocity: self.velocity,
+            acceleration: self.acceleration,
+            radius: self.radius,
+            motion_mode: self.motion_mode,
+            gamma: self.gamma(),
+            id: self.id,
+        }
+    }
+
+    pub(crate) fn get_detection_lines(&self) -> Vec<(MVector<f64>, MVector<f64>)> {
+        let mut res = vec![(self.last_m_pos, self.m_pos)];
+        if self.radius > EPSILON {
+            res.reserve(4);
+            res.push((
+                self.last_m_pos + self.front_offset,
+                self.m_pos + self.front_offset,
+            ));
+            res.push((
+                self.last_m_pos + self.back_offset,
+                self.m_pos + self.back_offset,
+            ));
+            res.push((
+                self.last_m_pos + self.bottom_offset,
+                self.m_pos + self.bottom_offset,
+            ));
+            res.push((
+                self.last_m_pos + self.top_offset,
+                self.m_pos + self.top_offset,
+            ));
+        }
+        res
+    }
+}
+
+impl MObject {
     fn velocity_update(&mut self, gamma: &mut f64, dt: &mut f64) {
         if self.acceleration.length() > 0.0 {
             self.accelerate(self.proper_time_step);
@@ -196,132 +372,6 @@ impl MObject {
         }
         Some(*x_0 + *dx * x)
     }
-
-    pub fn gamma(&self) -> f64 {
-        if self.motion_mode == MotionMode::AlwaysConstantVelocity {
-            return self.constant_gamma;
-        }
-        1.0 / (1.0 - self.velocity.length_squared()).sqrt()
-    }
-
-    pub fn one_over_gamma(&self) -> f64 {
-        if self.motion_mode == MotionMode::AlwaysConstantVelocity {
-            return 1.0 / self.constant_gamma;
-        }
-        (1.0 - self.velocity.length_squared()).sqrt()
-    }
-
-    pub fn calculate_between_photons_vector(&self) -> MVector<f64> {
-        let gamma = self.gamma();
-        let dt = self.proper_time_step * gamma;
-        let dx = self.velocity * dt;
-        MVector::new(dt, dx)
-    }
-
-    pub fn constant_velocity(&self) -> bool {
-        self.motion_mode == MotionMode::AlwaysConstantVelocity
-    }
-
-    pub fn between_photons_vector(&self) -> &MVector<f64> {
-        &self.constant_between_photons_vector
-    }
-
-    pub fn get_radius(&self) -> f64 {
-        self.radius
-    }
-
-    pub fn get_tau(&self) -> f64 {
-        self.tau
-    }
-
-    pub fn position(&self) -> &MVector<f64> {
-        &self.m_pos
-    }
-    pub fn get_last_position(&self) -> &MVector<f64> {
-        &self.last_m_pos
-    }
-
-    pub fn collision_group(&self) -> &CollisionGroup {
-        &self.collision_group
-    }
-
-    pub fn get_velocity(&self) -> &Vector2D<f64> {
-        &self.velocity
-    }
-
-    pub fn get_acceleration(&self) -> &Vector2D<f64> {
-        &self.acceleration
-    }
-
-    pub fn set_velocity(&mut self, velocity: Vector2D<f64>) {
-        if self.motion_mode == MotionMode::AlwaysConstantVelocity {
-            return;
-        }
-        self.velocity = velocity;
-        self.update_offsets();
-    }
-
-    pub fn set_acceleration(&mut self, acceleration: Vector2D<f64>) {
-        if self.motion_mode == MotionMode::AlwaysConstantVelocity {
-            return;
-        }
-        self.acceleration = acceleration;
-    }
-
-    pub(crate) fn emmit_all_photons(&mut self) -> Vec<Photon> {
-        let mut res = vec![Photon::new(self.m_pos, PhotonEmittingPosition::CENTER)];
-        if self.radius > EPSILON {
-            res.reserve(4);
-            res.push(Photon::new(
-                self.m_pos + self.front_offset,
-                PhotonEmittingPosition::FRONT,
-            ));
-            res.push(Photon::new(
-                self.m_pos + self.back_offset,
-                PhotonEmittingPosition::BACK,
-            ));
-            res.push(Photon::new(
-                self.m_pos + self.bottom_offset,
-                PhotonEmittingPosition::BOTTOM,
-            ));
-            res.push(Photon::new(
-                self.m_pos + self.top_offset,
-                PhotonEmittingPosition::TOP,
-            ));
-        }
-        res
-    }
-
-    pub(crate) fn get_proper_time_step(&self) -> f64 {
-        self.proper_time_step
-    }
-
-    pub(crate) fn state(self: &MObject) -> ObjectState {
-        ObjectState {
-            position: self.m_pos,
-            proper_time: self.tau,
-            velocity: self.velocity,
-            acceleration: self.acceleration,
-            radius: self.radius,
-            motion_mode: self.motion_mode,
-            gamma: self.gamma(),
-        }
-    }
-
-    pub(crate) fn get_detection_lines(&self) -> Vec<(MVector<f64>, MVector<f64>, f64)>{
-        let mut res = vec![(self.last_m_pos, self.m_pos, 0.0)];
-        if self.radius > EPSILON {
-            res.reserve(4);
-            res.push((self.last_m_pos + self.front_offset, self.m_pos + self.front_offset, self.front_offset.time));
-            res.push((self.last_m_pos + self.back_offset, self.m_pos + self.back_offset, self.back_offset.time));
-            res.push((self.last_m_pos + self.bottom_offset, self.m_pos + self.bottom_offset, self.bottom_offset.time));
-            res.push((self.last_m_pos + self.top_offset, self.m_pos + self.top_offset, self.top_offset.time));
-        }
-        res
-    }
-}
-
-impl MObject {
     fn check_for_next_update(&mut self, update_ratio_in_base_frame: f64) -> bool {
         if self.t_from_last_update_in_base_frame > update_ratio_in_base_frame {
             self.t_from_last_update_in_base_frame -= update_ratio_in_base_frame;

@@ -1,6 +1,6 @@
-use crate::WorldConfig;
 use crate::m_object::MObject;
 use crate::object_tracker::ObjectTracker;
+use crate::{ObjectSelection, WorldConfig};
 use std::collections::HashMap;
 use std::ops::Add;
 use vector2d::Vector2D;
@@ -12,7 +12,7 @@ pub(crate) struct HashCell {
 }
 pub(crate) struct HashGrid {
     cell_size: f64,
-    object_grid: HashMap<HashCell, Vec<usize>>,
+    object_grid: HashMap<HashCell, Vec<ObjectSelection>>,
 }
 
 impl HashGrid {
@@ -30,12 +30,12 @@ impl HashGrid {
         self.object_grid
             .iter_mut()
             .for_each(|(_, vector)| vector.clear());
-        self.insert_m_object(0, frame_object);
+        self.insert_m_object(frame_object);
         registered_objects
-            .iter()
-            .for_each(|r| self.insert_m_object(*r.0, &r.1.0));
+            .values()
+            .for_each(|(object, _)| self.insert_m_object(object));
     }
-    pub(crate) fn get_candidates(&self, object: &MObject) -> Vec<usize>{
+    pub(crate) fn get_candidates(&self, object: &MObject) -> Vec<ObjectSelection> {
         self.neighbour_cells(object.position())
             .iter()
             .filter_map(|e| self.object_grid.get(e))
@@ -55,32 +55,31 @@ impl HashGrid {
         let cell = self.to_cell(pos);
         [
             cell,
-            cell + Vector2D{ x: 0, y: -1 },
-            cell + Vector2D{ x: 0, y: 1 },
-            cell + Vector2D{ x: -1, y: -1 },
-            cell + Vector2D{ x: -1, y: 0 },
-            cell + Vector2D{ x: -1, y: 1 },
-            cell + Vector2D{ x: 1, y: -1 },
-            cell + Vector2D{ x: 1, y: 0 },
-            cell + Vector2D{ x: 1, y: 1 }
+            cell + Vector2D { x: 0, y: -1 },
+            cell + Vector2D { x: 0, y: 1 },
+            cell + Vector2D { x: -1, y: -1 },
+            cell + Vector2D { x: -1, y: 0 },
+            cell + Vector2D { x: -1, y: 1 },
+            cell + Vector2D { x: 1, y: -1 },
+            cell + Vector2D { x: 1, y: 0 },
+            cell + Vector2D { x: 1, y: 1 },
         ]
     }
 
-    fn insert_m_object(&mut self, id: usize, object: &MObject) {
+    fn insert_m_object(&mut self, object: &MObject) {
         let cell = self.to_cell(object.position());
         self.object_grid
             .entry(cell)
-            .and_modify(|e| e.push(id))
-            .or_insert(vec![id]);
+            .or_default()
+            .push(object.selection());
     }
 }
-
 
 impl Add<Vector2D<i32>> for HashCell {
     type Output = Self;
 
     fn add(self, rhs: Vector2D<i32>) -> Self::Output {
-        Self{
+        Self {
             idx_x: self.idx_x + rhs.x,
             idx_y: self.idx_y + rhs.y,
         }

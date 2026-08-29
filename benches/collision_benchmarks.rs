@@ -1,8 +1,9 @@
-use criterion::{Criterion, black_box, criterion_group, criterion_main};
+use criterion::{Criterion, criterion_group, criterion_main};
 use minkowski_space::{
     CollisionGroup, CollisionGroupPair, MVector, MWorld, MotionMode, ObjectConfig, StartPosition,
     Vector2D, WorldConfig,
 };
+use std::hint::black_box;
 
 fn config(position: Vector2D<f64>, velocity: Vector2D<f64>, group: CollisionGroup) -> ObjectConfig {
     ObjectConfig {

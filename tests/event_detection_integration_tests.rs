@@ -1,4 +1,3 @@
-
 use minkowski_space::{
     CollisionGroup, DetectionObject, EventObservation, MVector, MWorld, MotionMode, ObjectConfig,
     ProcessTimeCallback, StartPosition,
@@ -37,7 +36,7 @@ fn event_becomes_visible_to_frame_after_light_travel_time() {
 
     let callbacks = world.advance_by_proper_time(0.2);
     assert!(callbacks.iter().any(|callback| matches!(callback, ProcessTimeCallback::Event(event)
-        if event.event_id == event_id && matches!(event.detection_object, DetectionObject::FrameObject))));
+        if event.event_id == event_id && matches!(event.detection_object, DetectionObject::Observer))));
     assert!(matches!(
         world.observe_event(&event_id),
         Some(EventObservation::Visible(_))
@@ -60,7 +59,7 @@ fn callback_reports_frame_and_object_detection_without_duplicates() {
         .collect();
     assert_eq!(events.len(), 2);
     assert!(events.iter().any(|event| event.event_id == event_id
-        && matches!(event.detection_object, DetectionObject::FrameObject)));
+        && matches!(event.detection_object, DetectionObject::Observer)));
     assert!(events.iter().any(|event| event.event_id == event_id
         && matches!(event.detection_object, DetectionObject::MObject(id) if id == object_id)));
 
@@ -81,7 +80,7 @@ fn multiple_objects_detect_same_event_independently() {
         .filter_map(|callback| match callback {
             ProcessTimeCallback::Event(event) => match event.detection_object {
                 DetectionObject::MObject(id) => Some(id),
-                DetectionObject::FrameObject => None,
+                DetectionObject::Observer => None,
             },
             _ => None,
         })

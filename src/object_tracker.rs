@@ -6,7 +6,7 @@ use std::collections::{HashMap, VecDeque};
 use vector2d::Vector2D;
 
 #[derive(Clone, Debug, Default)]
-pub struct PhotonCrossing {
+pub(crate) struct PhotonCrossing {
     photon_emmit_pos: MVector<f64>,
     photon_emmit_pos_in_receiver_frame: MVector<f64>,
     time_from_catch: f64,
@@ -15,7 +15,7 @@ pub struct PhotonCrossing {
 pub const LAST_PHOTONS_COUNT: usize = 2;
 pub const LAST_RELATIVE_COUNT: usize = 1;
 #[derive(Clone, Debug)]
-pub struct TrackedSource {
+pub(crate) struct TrackedSource {
     last_photons: VecDeque<PhotonCrossing>,
     relative_freq: Option<f64>,
     constant_velocity_dx: Option<MVector<f64>>,
@@ -55,7 +55,7 @@ impl TrackedSource {
             relative_freq: None,
             proper_time_step: source.get_proper_time_step(),
         };
-        let first_crossing = res.calculate_photon_crossing(&first_photon);
+        let first_crossing = res.calculate_photon_crossing(first_photon);
         res.last_photons.push_back(first_crossing);
         res
     }
@@ -82,7 +82,7 @@ impl TrackedSource {
     }
 
     fn current_m_vector(&self) -> Option<MVector<f64>> {
-        if self.last_photons.len() >= 1 {
+        if !self.last_photons.is_empty() {
             let newest = self.last_photons.back().expect("Checked in if");
             let current_m_vector = newest.photon_emmit_pos + self.v_source * newest.time_from_catch;
             return Some(current_m_vector);
@@ -141,6 +141,14 @@ impl TrackedSource {
     }
 }
 
+type VisibleProperties = (
+    Vector2D<f64>,
+    Vector2D<f64>,
+    Vector2D<f64>,
+    f64,
+    MVector<f64>,
+);
+
 pub struct ObjectTracker {
     last_visible_source: HashMap<PhotonEmittingPosition, TrackedSource>,
     waiting_photons_queue: HashMap<PhotonEmittingPosition, VecDeque<Photon>>,
@@ -181,11 +189,11 @@ impl ObjectTracker {
 
     pub fn to_visible_observation(&self) -> VisibleObjectObservation {
         VisibleObjectObservation {
-            relative_position: self.relative_visible_position,
+            visible_position_in_observer_frame: self.relative_visible_position,
             basis_x: self.basis_x,
             basis_y: self.basis_y,
             relative_frequency: self.relative_frequency,
-            visible_position: self.visible_m_vector,
+            visible_position_in_lab_frame: self.visible_m_vector,
         }
     }
 }
@@ -234,16 +242,16 @@ impl ObjectTracker {
             let photon_emmit_type = emitted_photon.get_emmit_type();
             self.waiting_photons_queue
                 .entry(photon_emmit_type)
-                .or_insert_with(VecDeque::new)
+                .or_default()
                 .push_back(emitted_photon);
         })
     }
     fn process_new_photons(&mut self, source: &MObject, receiver: &ReceiverData) {
-        self.process_photons_of_type(source, receiver, PhotonEmittingPosition::CENTER);
-        self.process_photons_of_type(source, receiver, PhotonEmittingPosition::BOTTOM);
-        self.process_photons_of_type(source, receiver, PhotonEmittingPosition::TOP);
-        self.process_photons_of_type(source, receiver, PhotonEmittingPosition::FRONT);
-        self.process_photons_of_type(source, receiver, PhotonEmittingPosition::BACK);
+        self.process_photons_of_type(source, receiver, PhotonEmittingPosition::Center);
+        self.process_photons_of_type(source, receiver, PhotonEmittingPosition::Bottom);
+        self.process_photons_of_type(source, receiver, PhotonEmittingPosition::Top);
+        self.process_photons_of_type(source, receiver, PhotonEmittingPosition::Front);
+        self.process_photons_of_type(source, receiver, PhotonEmittingPosition::Back);
     }
 
     fn process_photons_of_type(
@@ -285,18 +293,10 @@ impl ObjectTracker {
         }
     }
 
-    fn calculate_properties(
-        &self,
-    ) -> Option<(
-        Vector2D<f64>,
-        Vector2D<f64>,
-        Vector2D<f64>,
-        f64,
-        MVector<f64>,
-    )> {
+    fn calculate_properties(&self) -> Option<VisibleProperties> {
         let last_visible_center = self
             .last_visible_source
-            .get(&PhotonEmittingPosition::CENTER)?;
+            .get(&PhotonEmittingPosition::Center)?;
         let current_m_vector = last_visible_center.current_m_vector()?;
         let relative_pos = last_visible_center.relative_position()?;
         let (basis_x, basis_y) = self
@@ -307,7 +307,7 @@ impl ObjectTracker {
             basis_x,
             basis_y,
             last_visible_center.relative_frequency()?,
-            current_m_vector.into(),
+            current_m_vector,
         ))
     }
 
@@ -316,11 +316,11 @@ impl ObjectTracker {
         center: &Vector2D<f64>,
     ) -> Option<(Vector2D<f64>, Vector2D<f64>)> {
         if let (Some(back), Some(front), Some(top), Some(bottom)) = (
-            self.last_visible_source.get(&PhotonEmittingPosition::BACK),
-            self.last_visible_source.get(&PhotonEmittingPosition::FRONT),
-            self.last_visible_source.get(&PhotonEmittingPosition::TOP),
+            self.last_visible_source.get(&PhotonEmittingPosition::Back),
+            self.last_visible_source.get(&PhotonEmittingPosition::Front),
+            self.last_visible_source.get(&PhotonEmittingPosition::Top),
             self.last_visible_source
-                .get(&PhotonEmittingPosition::BOTTOM),
+                .get(&PhotonEmittingPosition::Bottom),
         ) {
             let radius = back.object_radius;
             let a = [
