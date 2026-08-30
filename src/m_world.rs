@@ -248,16 +248,15 @@ impl MWorld {
             .unwrap_or(usize::MAX)
     }
 
-    /// Creates an event at the current laboratory time with a collision group.
+    /// Creates an event at an explicit spacetime position with a collision group.
     ///
     /// The returned ID can be passed to [`Self::event`], [`Self::observe_event`]
     /// and [`Self::unregister_event`].
     pub fn create_event_with_collision_group(
         &mut self,
-        event_position: Vector2D<f64>,
+        event: MVector<f64>,
         collision_group: CollisionGroup,
     ) -> usize {
-        let event = MVector::new(self.lab_time(), event_position);
         self.create_event_at_impl(event, collision_group)
     }
 
