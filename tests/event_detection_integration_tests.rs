@@ -1,5 +1,5 @@
 use minkowski_space::{
-    CollisionGroup, DetectionObject, EventObservation, MVector, MWorld, MotionMode, ObjectConfig,
+    CollisionGroup, EventObservation, MVector, MWorld, MotionMode, ObjectConfig, ObjectSelection,
     ProcessTimeCallback, StartPosition,
 };
 use vector2d::Vector2D;
@@ -36,7 +36,7 @@ fn event_becomes_visible_to_frame_after_light_travel_time() {
 
     let callbacks = world.advance_by_proper_time(0.2);
     assert!(callbacks.iter().any(|callback| matches!(callback, ProcessTimeCallback::Event(event)
-        if event.event_id == event_id && matches!(event.detection_object, DetectionObject::Observer))));
+        if event.event_id == event_id && matches!(event.detection_object, ObjectSelection::Observer))));
     assert!(matches!(
         world.observe_event(&event_id),
         Some(EventObservation::Visible(_))
@@ -59,9 +59,9 @@ fn callback_reports_frame_and_object_detection_without_duplicates() {
         .collect();
     assert_eq!(events.len(), 2);
     assert!(events.iter().any(|event| event.event_id == event_id
-        && matches!(event.detection_object, DetectionObject::Observer)));
+        && matches!(event.detection_object, ObjectSelection::Observer)));
     assert!(events.iter().any(|event| event.event_id == event_id
-        && matches!(event.detection_object, DetectionObject::MObject(id) if id == object_id)));
+        && matches!(event.detection_object, ObjectSelection::Object(id) if id == object_id)));
 
     let second = world.advance_by_proper_time(1.0);
     assert!(!second.iter().any(|callback| matches!(callback, ProcessTimeCallback::Event(event) if event.event_id == event_id)));
@@ -79,8 +79,8 @@ fn multiple_objects_detect_same_event_independently() {
         .iter()
         .filter_map(|callback| match callback {
             ProcessTimeCallback::Event(event) => match event.detection_object {
-                DetectionObject::MObject(id) => Some(id),
-                DetectionObject::Observer => None,
+                ObjectSelection::Object(id) => Some(id),
+                ObjectSelection::Observer => None,
             },
             _ => None,
         })

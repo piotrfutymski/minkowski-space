@@ -2,7 +2,7 @@ use crate::collision::collision_calculator::CollisionCalculator;
 use crate::collision::hashgrid::HashGrid;
 use crate::collision::{Collision, CollisionGroup, CollisionPair};
 use crate::config::{ConfigError, MotionMode, ObjectConfig, StartPosition, WorldConfig};
-use crate::m_event::{DetectionObject, EventDetection, MEvent};
+use crate::m_event::{EventDetection, MEvent};
 use crate::m_object::{MObject, ObjectState};
 use crate::m_vector::MVector;
 use crate::object_tracker::{ObjectTracker, ReceiverData};
@@ -790,7 +790,7 @@ impl MWorld {
         }
         let detection = EventDetection {
             event_id,
-            detection_object: DetectionObject::Observer,
+            detection_object: ObjectSelection::Observer,
             event_detection_position,
         };
         Some(ProcessTimeCallback::Event(detection))
@@ -813,7 +813,7 @@ impl MWorld {
         }
         let detection = EventDetection {
             event_id,
-            detection_object: DetectionObject::MObject(object_id),
+            detection_object: ObjectSelection::Object(object_id),
             event_detection_position,
         };
         Some(ProcessTimeCallback::Event(detection))

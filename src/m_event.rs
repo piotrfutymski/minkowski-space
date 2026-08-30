@@ -1,3 +1,4 @@
+use crate::ObjectSelection;
 use crate::collision::CollisionGroup;
 use crate::m_object::MObject;
 use crate::m_vector::MVector;
@@ -12,18 +13,9 @@ pub struct EventDetection {
     /// ID of the detected event.
     pub event_id: usize,
     /// Object that detected the event.
-    pub detection_object: DetectionObject,
+    pub detection_object: ObjectSelection,
     /// Detection position in laboratory coordinates.
     pub event_detection_position: MVector<f64>,
-}
-
-/// Identifies the object that detected an event.
-#[derive(Debug, Copy, Clone)]
-pub enum DetectionObject {
-    /// A registered object identified by its ID.
-    MObject(usize),
-    /// The world observer.
-    Observer,
 }
 
 /// An internal event candidate used during event detection.

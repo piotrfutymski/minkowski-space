@@ -26,7 +26,7 @@ pub use collision::{
     Collision, CollisionGroup, CollisionGroupId, CollisionGroupPair, CollisionPair,
 };
 pub use config::{ConfigError, MotionMode, ObjectConfig, StartPosition, WorldConfig};
-pub use m_event::{DetectionObject, EventDetection};
+pub use m_event::EventDetection;
 pub use m_object::ObjectState;
 pub use m_vector::{Causality, MVector};
 pub use m_world::{MWorld, ObjectSelection, ProcessTimeCallback};

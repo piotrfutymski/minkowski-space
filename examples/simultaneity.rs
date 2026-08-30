@@ -12,7 +12,7 @@
 //! frame sees both detections at the same time.
 
 use minkowski_space::{
-    DetectionObject, EventObservation, MVector, MWorld, ObjectConfig, ProcessTimeCallback,
+    EventObservation, MVector, MWorld, ObjectConfig, ObjectSelection, ProcessTimeCallback,
 };
 use vector2d::Vector2D;
 
@@ -60,7 +60,7 @@ fn main() {
         let ProcessTimeCallback::Event(detection) = callback else {
             continue;
         };
-        let DetectionObject::MObject(id) = detection.detection_object else {
+        let ObjectSelection::Object(id) = detection.detection_object else {
             continue;
         };
         if id == left_mirror {
