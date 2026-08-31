@@ -61,9 +61,7 @@ impl CollisionCalculator<'_> {
         selection: ObjectSelection,
         object: &MObject,
     ) -> Vec<(ObjectSelection, &MObject)> {
-        if !object.is_collision_detection_enabled()
-            || *object.monitoring_collision_mask() == CollisionMask::EMPTY
-        {
+        if !object.is_collision_detection_enabled() {
             return vec![];
         }
         self.world

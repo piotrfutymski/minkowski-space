@@ -56,16 +56,16 @@ fn test_two_collisions_after_objects_turn_back() {
         velocity: Vector2D::new(0.5, 0.0),
         radius: 0.2,
         motion_mode: MotionMode::Dynamic,
-        monitoring_collision_mask: CollisionMask::from_layers(&[1]),
-        monitorable_collision_mask: CollisionMask::EMPTY,
+        monitoring_collision_mask: CollisionMask::EMPTY,
+        monitorable_collision_mask: CollisionMask::from_layers(&[0, 1]),
     });
     let right = m_world.register_object(ObjectConfig {
         position: StartPosition::Position(MVector::new(0.0, Vector2D::new(1.0, 0.0))),
         velocity: Vector2D::new(-0.5, 0.0),
         radius: 0.2,
         motion_mode: MotionMode::Dynamic,
-        monitoring_collision_mask: CollisionMask::EMPTY,
-        monitorable_collision_mask: CollisionMask::from_layers(&[1]),
+        monitoring_collision_mask: CollisionMask::from_layers(&[1]),
+        monitorable_collision_mask: CollisionMask::EMPTY,
     });
 
     let mut collision_positions = Vec::new();
