@@ -1,6 +1,6 @@
 use minkowski_space::m_vector::MVector;
 use minkowski_space::{
-    CollisionGroup, MWorld, MotionMode, ObjectConfig, ObjectObservation, StartPosition,
+    CollisionMask, MWorld, MotionMode, ObjectConfig, ObjectObservation, StartPosition,
 };
 use vector2d::Vector2D;
 
@@ -13,7 +13,8 @@ fn test_minkowski_space(motion_mode: MotionMode) {
         velocity: Vector2D::new(-0.6, -0.6) * transform,
         radius: 0.1,
         motion_mode,
-        collision_group: CollisionGroup::Empty,
+        monitoring_collision_mask: CollisionMask::new(0),
+        monitorable_collision_mask: CollisionMask::new(0),
     });
     assert_eq!(
         m_world.observe_object(&id).unwrap(),

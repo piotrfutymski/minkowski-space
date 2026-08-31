@@ -1,10 +1,10 @@
 use minkowski_space::{
-    MVector, MWorld, MotionMode, ObjectConfig, ProcessTimeCallback, StartPosition, WorldConfig,
+    CollisionMask, MVector, MWorld, MotionMode, ObjectConfig, ProcessTimeCallback, StartPosition,
 };
 use vector2d::Vector2D;
 
 fn test_collision_with_v(v: f64) {
-    let mut m_world = MWorld::with_config(WorldConfig::with_collisions(vec![(0, 1)])).unwrap();
+    let mut m_world = MWorld::new();
 
     let distance = 2.0;
     let radius = 0.2;
@@ -15,7 +15,8 @@ fn test_collision_with_v(v: f64) {
         velocity: Vector2D::new(v, 0.0),
         radius,
         motion_mode: MotionMode::AlwaysConstantVelocity,
-        collision_group: 0.into(),
+        monitoring_collision_mask: CollisionMask::from_layers(&[0]),
+        monitorable_collision_mask: CollisionMask::from_layers(&[1]),
     });
 
     let _right = m_world.register_object(ObjectConfig {
@@ -23,7 +24,8 @@ fn test_collision_with_v(v: f64) {
         velocity: Vector2D::new(-v, 0.0),
         radius,
         motion_mode: MotionMode::AlwaysConstantVelocity,
-        collision_group: 1.into(),
+        monitoring_collision_mask: CollisionMask::from_layers(&[1]),
+        monitorable_collision_mask: CollisionMask::from_layers(&[0]),
     });
 
     let mut all_callbacks = vec![];
@@ -47,21 +49,23 @@ fn test_collision_with_v(v: f64) {
 
 #[test]
 fn test_two_collisions_after_objects_turn_back() {
-    let mut m_world = MWorld::with_config(WorldConfig::with_collisions(vec![(0, 1)])).unwrap();
+    let mut m_world = MWorld::new();
 
     let left = m_world.register_object(ObjectConfig {
         position: StartPosition::Position(MVector::new(0.0, Vector2D::new(-1.0, 0.0))),
         velocity: Vector2D::new(0.5, 0.0),
         radius: 0.2,
         motion_mode: MotionMode::Dynamic,
-        collision_group: 0.into(),
+        monitoring_collision_mask: CollisionMask::from_layers(&[0]),
+        monitorable_collision_mask: CollisionMask::from_layers(&[0]),
     });
     let right = m_world.register_object(ObjectConfig {
         position: StartPosition::Position(MVector::new(0.0, Vector2D::new(1.0, 0.0))),
         velocity: Vector2D::new(-0.5, 0.0),
         radius: 0.2,
         motion_mode: MotionMode::Dynamic,
-        collision_group: 1.into(),
+        monitoring_collision_mask: CollisionMask::from_layers(&[0]),
+        monitorable_collision_mask: CollisionMask::from_layers(&[0]),
     });
 
     let mut collision_positions = Vec::new();

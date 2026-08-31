@@ -1,13 +1,13 @@
+use crate::EPSILON;
 use crate::collision::collision_calculator::CollisionCalculator;
 use crate::collision::hashgrid::HashGrid;
-use crate::collision::{Collision, CollisionGroup, CollisionPair};
+use crate::collision::{Collision, CollisionMask, CollisionPair};
 use crate::config::{ConfigError, MotionMode, ObjectConfig, StartPosition, WorldConfig};
 use crate::m_event::{EventDetection, MEvent};
 use crate::m_object::{MObject, ObjectState};
 use crate::m_vector::MVector;
 use crate::object_tracker::{ObjectTracker, ReceiverData};
 use crate::observation::{EventObservation, ObjectObservation, VisibleObjectObservation};
-use crate::{CollisionGroupPair, EPSILON};
 use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::{IntoParallelRefMutIterator, ParallelBridge, ParallelIterator};
 use std::cmp::Ordering;
@@ -152,16 +152,14 @@ impl MWorld {
     /// let world = MWorld::with_config(WorldConfig::default()).unwrap();
     /// assert_eq!(world.lab_time(), 0.0);
     /// ```
-    pub fn with_config(mut config: WorldConfig) -> Result<Self, ConfigError> {
+    pub fn with_config(config: WorldConfig) -> Result<Self, ConfigError> {
         config.validate()?;
-        config.collision_pairs = config
-            .collision_pairs
-            .into_iter()
-            .map(|pair| pair.canonical())
-            .collect();
         let observer_config = ObjectConfig {
             radius: config.observer_collision_radius,
-            ..ObjectConfig::default_with_group(config.observer_collision_group)
+            ..ObjectConfig::default_with_group(
+                config.observer_collision_monitoring,
+                config.observer_collision_monitorable,
+            )
         };
         Ok(Self {
             observer_object: MObject::new(observer_config, config.proper_time_step, 0.0, 0),
@@ -255,14 +253,14 @@ impl MWorld {
     pub fn create_event_with_collision_group(
         &mut self,
         event: MVector<f64>,
-        collision_group: CollisionGroup,
+        collision_group: CollisionMask,
     ) -> usize {
         self.create_event_at_impl(event, collision_group)
     }
 
     /// Creates an event at the current laboratory time.
     ///
-    /// The event uses [`CollisionGroup::All`].
+    /// The event uses [`CollisionMask::All`].
     ///
     /// # Example
     ///
@@ -275,15 +273,15 @@ impl MWorld {
     /// ```
     pub fn create_event(&mut self, event_position: Vector2D<f64>) -> usize {
         let event = MVector::new(self.lab_time(), event_position);
-        self.create_event_at_impl(event, CollisionGroup::All)
+        self.create_event_at_impl(event, CollisionMask::ALL)
     }
 
     /// Creates an event at an explicit spacetime position.
     ///
     /// The `time` component of `event` is laboratory time. The event uses
-    /// [`CollisionGroup::All`].
+    /// [`CollisionMask::ALL`].
     pub fn create_event_at(&mut self, event: MVector<f64>) -> usize {
-        self.create_event_at_impl(event, CollisionGroup::All)
+        self.create_event_at_impl(event, CollisionMask::ALL)
     }
 
     /// Removes a registered object from the world.
@@ -613,10 +611,6 @@ impl MWorld {
     pub(crate) fn get_hash_grid(&self) -> &HashGrid {
         &self.hash_grid
     }
-
-    pub(crate) fn configured_pairs(&self) -> &BTreeSet<CollisionGroupPair> {
-        &self.config.collision_pairs
-    }
 }
 
 //Private
@@ -626,7 +620,7 @@ impl MWorld {
         let now = self.lab_time();
 
         for collision in collisions {
-            let pair = CollisionPair::new(collision.object_a, collision.object_b);
+            let pair = CollisionPair::new(collision.monitoring, collision.monitorable);
             let was_active = self.active_collision_pairs.contains_key(&pair);
             let collision_time = collision.position.time;
             self.active_collision_pairs
@@ -660,7 +654,7 @@ impl MWorld {
         id: usize,
         m_object: &mut MObject,
     ) {
-        if matches!(m_object.collision_group(), CollisionGroup::Empty) {
+        if *m_object.monitoring_collision_mask() == CollisionMask::EMPTY {
             return;
         }
         self.event_possible_to_detect.insert(
@@ -668,10 +662,8 @@ impl MWorld {
             self.events
                 .iter()
                 .filter(|e| {
-                    e.1.collision_group().collision_group_matches(
-                        m_object.collision_group(),
-                        &self.config.collision_pairs,
-                    )
+                    e.1.collision_mask()
+                        .mask_matches(m_object.monitoring_collision_mask())
                 })
                 .filter(|e| (*m_object.position() - *e.1.position()).is_space_like())
                 .map(|e| *e.0)
@@ -736,12 +728,12 @@ impl MWorld {
     fn create_event_at_impl(
         &mut self,
         event: MVector<f64>,
-        collision_group: CollisionGroup,
+        collision_group: CollisionMask,
     ) -> usize {
         let id = self.counter;
         self.counter += 1;
         let m_event = MEvent::new(event, collision_group);
-        if matches!(m_event.collision_group(), CollisionGroup::Empty) {
+        if *m_event.collision_mask() == CollisionMask::EMPTY {
             self.events.insert(id, m_event);
             return id;
         }
@@ -752,10 +744,9 @@ impl MWorld {
             .filter(|object_id| {
                 self.get_object_with_selection(&object_id.into())
                     .is_some_and(|object| {
-                        object.collision_group().collision_group_matches(
-                            m_event.collision_group(),
-                            &self.config.collision_pairs,
-                        )
+                        object
+                            .monitoring_collision_mask()
+                            .mask_matches(m_event.collision_mask())
                     })
             })
             .collect();

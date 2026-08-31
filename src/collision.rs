@@ -7,73 +7,49 @@ use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 use vector2d::Vector2D;
 
-/// A collision group configured before a world is created.
-///
-/// Group identifiers are opaque and can only be obtained from
-/// [`crate::WorldConfig::define_collision_group`]. An object may belong to at
-/// most one group.
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct CollisionGroupId(pub(crate) u32);
-
 /// Defines how an object participates in collision filtering.
+/// Monitoring and Monitorable mas must match to detect collision
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub enum CollisionGroup {
-    /// The object does not participate in collisions.
-    Empty,
-    /// A user-defined collision group.
-    CollisionGroup(CollisionGroupId),
-    /// Matches every collision group.
-    All,
+pub struct CollisionMask {
+    mask: u32,
 }
 
-impl From<u32> for CollisionGroup {
+impl From<u32> for CollisionMask {
     fn from(value: u32) -> Self {
-        Self::CollisionGroup(CollisionGroupId(value))
+        Self { mask: value }
     }
 }
 
-impl CollisionGroup {
-    pub(crate) fn collision_group_matches(
-        &self,
-        other: &CollisionGroup,
-        configured_pairs: &BTreeSet<CollisionGroupPair>,
-    ) -> bool {
-        match (self, other) {
-            (CollisionGroup::All, _) | (_, CollisionGroup::All) => true,
-            (CollisionGroup::Empty, _) | (_, CollisionGroup::Empty) => false,
-            (CollisionGroup::CollisionGroup(id_a), CollisionGroup::CollisionGroup(id_b)) => {
-                CollisionGroupPair(*id_a, *id_b).is_configured(configured_pairs)
+impl CollisionMask {
+    /// Mask that matches any other mask.
+    pub const ALL: CollisionMask = CollisionMask { mask: u32::MAX };
+    /// Mask that matches no other mask.
+    pub const EMPTY: CollisionMask = CollisionMask { mask: 0 };
+
+    pub fn new(mask: u32) -> Self {
+        mask.into()
+    }
+
+    pub fn from_layers(layers: &[u32]) -> Self {
+        let mut res = 0;
+        for i in layers {
+            if *i < 32 {
+                res = res | (1 << i)
             }
         }
+        res.into()
     }
 }
 
-/// A pair of collision groups that is allowed to interact.
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct CollisionGroupPair(
-    /// First group in the pair.
-    pub CollisionGroupId,
-    /// Second group in the pair.
-    pub CollisionGroupId,
-);
-
-impl CollisionGroupPair {
-    pub(crate) fn canonical(self) -> Self {
-        if self.0 <= self.1 {
-            self
-        } else {
-            Self(self.1, self.0)
-        }
-    }
-
-    pub(crate) fn is_configured(self, configured_pairs: &BTreeSet<Self>) -> bool {
-        configured_pairs.contains(&self.canonical())
+impl CollisionMask {
+    pub(crate) fn mask_matches(&self, other: &CollisionMask) -> bool {
+        self.mask & other.mask > 0
     }
 }
 
 /// The canonical identity of two objects in contact.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct CollisionPair(
+pub(crate) struct CollisionPair(
     /// First object in the pair.
     pub ObjectSelection,
     /// Second object in the pair.
@@ -95,10 +71,27 @@ impl CollisionPair {
 /// A collision detected during a simulation step.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Collision {
-    /// The first participant in the canonical pair.
-    pub object_a: ObjectSelection,
-    /// The second participant in the canonical pair.
-    pub object_b: ObjectSelection,
+    /// Monitoring participant
+    pub monitoring: ObjectSelection,
+    /// Monitorable participant
+    pub monitorable: ObjectSelection,
     /// Spacetime position of the contact in laboratory coordinates.
     pub position: MVector<f64>,
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::CollisionMask;
+
+    #[test]
+    fn test_masks() {
+        let monitoring_first = CollisionMask::from_layers(&vec![2, 3]);
+        let monitoring_second = CollisionMask::from_layers(&vec![1, 4]);
+        let monitorable = CollisionMask::from_layers(&vec![0, 1]);
+        assert_eq!(monitoring_first.mask, 12);
+        assert_eq!(monitoring_second.mask, 18);
+        assert_eq!(monitorable.mask, 3);
+        assert!(!monitoring_first.mask_matches(&monitorable));
+        assert!(monitoring_second.mask_matches(&monitorable));
+    }
 }

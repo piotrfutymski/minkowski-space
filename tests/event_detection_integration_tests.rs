@@ -1,6 +1,6 @@
 use minkowski_space::{
-    CollisionGroup, EventObservation, MVector, MWorld, MotionMode, ObjectConfig, ObjectSelection,
-    ProcessTimeCallback, StartPosition,
+    CollisionMask, EventObservation, MVector, MWorld, MotionMode, ObjectConfig, ObjectSelection,
+    ProcessTimeCallback, StartPosition, WorldConfig,
 };
 use vector2d::Vector2D;
 
@@ -10,13 +10,18 @@ fn stationary_object(position: Vector2D<f64>) -> ObjectConfig {
         velocity: Vector2D::new(0.0, 0.0),
         radius: 0.1,
         motion_mode: MotionMode::AlwaysConstantVelocity,
-        collision_group: CollisionGroup::All,
+        monitoring_collision_mask: CollisionMask::new(u32::MAX),
+        monitorable_collision_mask: CollisionMask::new(0),
     }
 }
 
 #[test]
 fn event_becomes_visible_to_frame_after_light_travel_time() {
-    let mut world = MWorld::new();
+    let mut world = MWorld::with_config(WorldConfig {
+        observer_collision_monitoring: CollisionMask::new(u32::MAX),
+        ..WorldConfig::default()
+    })
+    .unwrap();
     let event_id = world.create_event(Vector2D::new(2.0, 0.0));
 
     assert_eq!(
@@ -45,7 +50,11 @@ fn event_becomes_visible_to_frame_after_light_travel_time() {
 
 #[test]
 fn callback_reports_frame_and_object_detection_without_duplicates() {
-    let mut world = MWorld::new();
+    let mut world = MWorld::with_config(WorldConfig {
+        observer_collision_monitoring: CollisionMask::new(u32::MAX),
+        ..WorldConfig::default()
+    })
+    .unwrap();
     let object_id = world.register_object(stationary_object(Vector2D::new(4.0, 0.0)));
     let event_id = world.create_event(Vector2D::new(0.0, 0.0));
 

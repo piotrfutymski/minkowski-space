@@ -22,9 +22,7 @@ mod object_tracker;
 mod observation;
 mod photon;
 
-pub use collision::{
-    Collision, CollisionGroup, CollisionGroupId, CollisionGroupPair, CollisionPair,
-};
+pub use collision::{Collision, CollisionMask};
 pub use config::{ConfigError, MotionMode, ObjectConfig, StartPosition, WorldConfig};
 pub use m_event::EventDetection;
 pub use m_object::ObjectState;

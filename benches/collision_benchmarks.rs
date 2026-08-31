@@ -1,17 +1,22 @@
 use criterion::{Criterion, criterion_group, criterion_main};
 use minkowski_space::{
-    CollisionGroup, CollisionGroupPair, MVector, MWorld, MotionMode, ObjectConfig, StartPosition,
-    Vector2D, WorldConfig,
+    CollisionMask, MVector, MWorld, MotionMode, ObjectConfig, StartPosition, Vector2D,
 };
 use std::hint::black_box;
 
-fn config(position: Vector2D<f64>, velocity: Vector2D<f64>, group: CollisionGroup) -> ObjectConfig {
+fn config(
+    position: Vector2D<f64>,
+    velocity: Vector2D<f64>,
+    monitoring: CollisionMask,
+    monitorable: CollisionMask,
+) -> ObjectConfig {
     ObjectConfig {
         position: StartPosition::Position(MVector::new(0.0, position)),
         velocity,
         radius: 0.05,
         motion_mode: MotionMode::AlwaysConstantVelocity,
-        collision_group: group,
+        monitoring_collision_mask: monitoring,
+        monitorable_collision_mask: monitorable,
     }
 }
 
@@ -22,25 +27,33 @@ fn build_world(
     dense: bool,
     filtered: bool,
 ) -> MWorld {
-    let mut world_config = WorldConfig::default();
-    let group = world_config.define_collision_group();
-    let other_group = world_config.define_collision_group();
-    world_config.collision_pairs.insert(if filtered {
-        CollisionGroupPair(group, group)
+    let mut world = MWorld::new();
+    // Layer 0 monitors layer 0 => collisions within group A.
+    // Layer 1 monitors layer 1 => collisions within group B.
+    // If filtered, objects monitor a layer that no other object is monitorable on.
+    let (monitoring_group, monitorable_group) = if filtered {
+        // group 0 monitors layer 0, group 1 monitors layer 1
+        (
+            CollisionMask::from_layers(&[0]),
+            CollisionMask::from_layers(&[1]),
+        )
     } else {
-        CollisionGroupPair(group, other_group)
-    });
-    let mut world = MWorld::with_config(world_config).unwrap();
-    let collision_group = if filtered {
-        CollisionGroup::CollisionGroup(other_group)
-    } else {
-        CollisionGroup::CollisionGroup(group)
+        // all objects monitor and are monitorable on layer 0
+        (
+            CollisionMask::from_layers(&[0]),
+            CollisionMask::from_layers(&[0]),
+        )
     };
     let spacing = if dense { 0.08 } else { 4.0 };
     for index in 0..count {
         let x = (index % grid_width) as f64 * spacing;
         let y = (index / grid_width) as f64 * spacing;
-        world.register_object(config(Vector2D::new(x, y), velocity, collision_group));
+        world.register_object(config(
+            Vector2D::new(x, y),
+            velocity,
+            monitoring_group,
+            monitorable_group,
+        ));
     }
     world
 }

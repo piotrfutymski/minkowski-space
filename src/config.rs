@@ -1,4 +1,4 @@
-use crate::collision::{CollisionGroup, CollisionGroupId, CollisionGroupPair};
+use crate::collision::CollisionMask;
 use crate::m_vector::MVector;
 use std::collections::BTreeSet;
 use vector2d::Vector2D;
@@ -81,8 +81,10 @@ pub struct ObjectConfig {
     pub radius: f64,
     /// Integration strategy used by the object.
     pub motion_mode: MotionMode,
-    /// Collision group assigned to the object.
-    pub collision_group: CollisionGroup,
+    /// Monitoring collision mask.
+    pub monitoring_collision_mask: CollisionMask,
+    /// Monitorable collision mask.
+    pub monitorable_collision_mask: CollisionMask,
 }
 
 impl ObjectConfig {
@@ -131,7 +133,8 @@ impl ObjectConfig {
             velocity: initial_velocity,
             radius: 0.0,
             motion_mode: MotionMode::AlwaysConstantVelocity,
-            collision_group: CollisionGroup::Empty,
+            monitoring_collision_mask: CollisionMask::EMPTY,
+            monitorable_collision_mask: CollisionMask::EMPTY,
         }
     }
 
@@ -144,19 +147,24 @@ impl ObjectConfig {
             velocity: Default::default(),
             radius: 0.0,
             motion_mode: MotionMode::Dynamic,
-            collision_group: CollisionGroup::Empty,
+            monitoring_collision_mask: CollisionMask::EMPTY,
+            monitorable_collision_mask: CollisionMask::EMPTY,
         }
     }
     /// Creates a dynamic object configuration at the spacetime origin.
     ///
-    /// The object is assigned the supplied collision group.
-    pub fn default_with_group(collision_group: CollisionGroup) -> ObjectConfig {
+    /// The object is assigned the supplied collision masks.
+    pub fn default_with_group(
+        monitoring: CollisionMask,
+        monitorable: CollisionMask,
+    ) -> ObjectConfig {
         ObjectConfig {
             position: StartPosition::Position(Default::default()),
             velocity: Default::default(),
             radius: 0.0,
             motion_mode: MotionMode::Dynamic,
-            collision_group,
+            monitoring_collision_mask: monitoring,
+            monitorable_collision_mask: monitorable,
         }
     }
 }
@@ -168,7 +176,8 @@ impl Default for ObjectConfig {
             velocity: Default::default(),
             radius: 0.0,
             motion_mode: MotionMode::Dynamic,
-            collision_group: CollisionGroup::Empty,
+            monitoring_collision_mask: CollisionMask::EMPTY,
+            monitorable_collision_mask: CollisionMask::EMPTY,
         }
     }
 }
@@ -180,49 +189,15 @@ pub struct WorldConfig {
     pub proper_time_step: f64,
     /// Spatial size of a cell used by broad-phase collision detection.
     pub spatial_hash_cell_size: f64,
-    /// Collision groups defined for this world.
-    pub collision_groups: BTreeSet<CollisionGroupId>,
-    /// Pairs of groups that are allowed to collide.
-    pub collision_pairs: BTreeSet<CollisionGroupPair>,
-    /// Collision group assigned to the observer.
-    pub observer_collision_group: CollisionGroup,
+    /// Observer collision monitoring mask
+    pub observer_collision_monitoring: CollisionMask,
+    /// Observer collision monitorable mask
+    pub observer_collision_monitorable: CollisionMask,
     /// Collision radius assigned to the observer.
     pub observer_collision_radius: f64,
 }
 
 impl WorldConfig {
-    /// Creates a default world configuration with the supplied collision pairs.
-    ///
-    /// Each tuple contains the numeric IDs of two collision groups. The groups
-    /// are added to the configuration automatically.
-    pub fn with_collisions(collisions: Vec<(u32, u32)>) -> Self {
-        let mut res = Self::default();
-        collisions.into_iter().for_each(|(l, r)| {
-            let l = CollisionGroupId(l);
-            let r = CollisionGroupId(r);
-            res.collision_groups.insert(l);
-            res.collision_groups.insert(r);
-            res.collision_pairs.insert(CollisionGroupPair(l, r));
-        });
-        res
-    }
-
-    /// Allocates a group identifier owned by this configuration.
-    ///
-    /// The returned ID is inserted into [`Self::collision_groups`] and can be
-    /// used to construct a [`CollisionGroup::CollisionGroup`].
-    pub fn define_collision_group(&mut self) -> CollisionGroupId {
-        let id = CollisionGroupId(
-            self.collision_groups
-                .iter()
-                .map(|group| group.0)
-                .max()
-                .map_or(0, |id| id.saturating_add(1)),
-        );
-        self.collision_groups.insert(id);
-        id
-    }
-
     /// Validates the physical and numerical invariants of this configuration.
     pub fn validate(&self) -> Result<(), ConfigError> {
         valid_number(self.proper_time_step, "proper_time_step")?;
@@ -243,11 +218,6 @@ impl WorldConfig {
                 field: "frame_collision_radius",
             });
         }
-        if self.collision_pairs.iter().any(|pair| {
-            !self.collision_groups.contains(&pair.0) || !self.collision_groups.contains(&pair.1)
-        }) {
-            return Err(ConfigError::InvalidCollisionGroupPair);
-        }
         Ok(())
     }
 }
@@ -257,9 +227,8 @@ impl Default for WorldConfig {
         Self {
             proper_time_step: 1.0 / 120.0,
             spatial_hash_cell_size: 1.0,
-            collision_groups: BTreeSet::new(),
-            collision_pairs: BTreeSet::new(),
-            observer_collision_group: CollisionGroup::Empty,
+            observer_collision_monitoring: CollisionMask::EMPTY,
+            observer_collision_monitorable: CollisionMask::EMPTY,
             observer_collision_radius: 0.0,
         }
     }

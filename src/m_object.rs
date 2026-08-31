@@ -1,4 +1,4 @@
-use crate::collision::{CollisionGroup, CollisionGroupId};
+use crate::collision::CollisionMask;
 use crate::config::{MotionMode, ObjectConfig, StartPosition};
 use crate::m_vector::MVector;
 use crate::m_world::ObjectSelection;
@@ -56,7 +56,8 @@ pub(crate) struct MObject {
 
     proper_time_step: f64,
     collision_detection_enabled: bool,
-    collision_group: CollisionGroup,
+    monitoring_collision_mask: CollisionMask,
+    monitorable_collision_mask: CollisionMask,
 }
 
 impl MObject {
@@ -89,7 +90,8 @@ impl MObject {
             top_offset: Default::default(),
             proper_time_step: update_ratio,
             collision_detection_enabled: true,
-            collision_group: object_config.collision_group,
+            monitoring_collision_mask: object_config.monitoring_collision_mask,
+            monitorable_collision_mask: object_config.monitorable_collision_mask,
         };
         if object_config.motion_mode == MotionMode::AlwaysConstantVelocity {
             res.ready_constant_v()
@@ -222,10 +224,12 @@ impl MObject {
         &self.last_m_pos
     }
 
-    pub(crate) fn collision_group(&self) -> &CollisionGroup {
-        &self.collision_group
+    pub(crate) fn monitoring_collision_mask(&self) -> &CollisionMask {
+        &self.monitoring_collision_mask
     }
-
+    pub(crate) fn monitorable_collision_mask(&self) -> &CollisionMask {
+        &self.monitorable_collision_mask
+    }
     pub(crate) fn get_velocity(&self) -> &Vector2D<f64> {
         &self.velocity
     }

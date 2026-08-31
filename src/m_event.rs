@@ -1,5 +1,5 @@
 use crate::ObjectSelection;
-use crate::collision::CollisionGroup;
+use crate::collision::CollisionMask;
 use crate::m_object::MObject;
 use crate::m_vector::MVector;
 use vector2d::Vector2D;
@@ -30,7 +30,7 @@ pub struct EventToCheck {
 #[derive(Debug, Clone)]
 pub struct MEvent {
     event_pos: MVector<f64>,
-    collision_group: CollisionGroup,
+    collision_mask: CollisionMask,
 }
 
 impl MEvent {
@@ -38,14 +38,14 @@ impl MEvent {
         &self.event_pos
     }
 
-    pub(crate) fn collision_group(&self) -> &CollisionGroup {
-        &self.collision_group
+    pub(crate) fn collision_mask(&self) -> &CollisionMask {
+        &self.collision_mask
     }
 
-    pub(crate) fn new(event_pos: MVector<f64>, collision_group: CollisionGroup) -> Self {
+    pub(crate) fn new(event_pos: MVector<f64>, collision_group: CollisionMask) -> Self {
         Self {
             event_pos,
-            collision_group,
+            collision_mask: collision_group,
         }
     }
 }

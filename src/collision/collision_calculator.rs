@@ -1,6 +1,6 @@
 use crate::collision::hashgrid::HashGrid;
 use crate::m_object::MObject;
-use crate::{Collision, CollisionGroup, CollisionPair, EPSILON, MVector, MWorld, ObjectSelection};
+use crate::{Collision, CollisionMask, EPSILON, MVector, MWorld, ObjectSelection};
 use rayon::prelude::{ParallelBridge, ParallelIterator};
 use vector2d::Vector2D;
 
@@ -31,12 +31,26 @@ impl CollisionCalculator<'_> {
 
         for (candidate_selection, candidate) in collision_candidates {
             if let Some(position) = Self::collision_detected(object, candidate) {
-                let pair = CollisionPair::new(selection, candidate_selection);
-                result.push(Collision {
-                    object_a: pair.0,
-                    object_b: pair.1,
-                    position,
-                });
+                if object
+                    .monitoring_collision_mask()
+                    .mask_matches(candidate.monitorable_collision_mask())
+                {
+                    result.push(Collision {
+                        monitoring: selection,
+                        monitorable: candidate_selection,
+                        position,
+                    });
+                }
+                if object
+                    .monitorable_collision_mask()
+                    .mask_matches(candidate.monitoring_collision_mask())
+                {
+                    result.push(Collision {
+                        monitoring: candidate_selection,
+                        monitorable: selection,
+                        position,
+                    });
+                }
             }
         }
         result
@@ -48,7 +62,7 @@ impl CollisionCalculator<'_> {
         object: &MObject,
     ) -> Vec<(ObjectSelection, &MObject)> {
         if !object.is_collision_detection_enabled()
-            || matches!(object.collision_group(), CollisionGroup::Empty)
+            || *object.monitoring_collision_mask() == CollisionMask::EMPTY
         {
             return vec![];
         }
@@ -64,10 +78,12 @@ impl CollisionCalculator<'_> {
             })
             .filter(|(_, candidate)| {
                 candidate.is_collision_detection_enabled()
-                    && object.collision_group().collision_group_matches(
-                        candidate.collision_group(),
-                        self.world.configured_pairs(),
-                    )
+                    && (object
+                        .monitoring_collision_mask()
+                        .mask_matches(candidate.monitorable_collision_mask())
+                        || object
+                            .monitorable_collision_mask()
+                            .mask_matches(candidate.monitoring_collision_mask()))
             })
             .collect()
     }
